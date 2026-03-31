@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:parvexglobal/pages/add_instrument.dart';
+import 'package:parvexglobal/pages/home_screen.dart';
 import 'package:parvexglobal/pages/onboarding/onboarding.dart';
 
 void main() {
