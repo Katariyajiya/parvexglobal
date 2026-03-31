@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../auth/login_screen.dart';
-import '../auth/register_screen.dart';
-
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -41,12 +39,16 @@ class _SplashScreenState extends State<SplashScreen> {
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: const Center(
-                  child: Icon(Icons.analytics_outlined, color: Color(0xFF4FC3F7), size: 50),
+                  child: Icon(
+                    Icons.analytics_outlined,
+                    color: Color(0xFF4FC3F7),
+                    size: 50,
+                  ),
                 ),
               ),
               const SizedBox(height: 30),
               const Text(
-                'MarketWatch',
+                'PervexGlobal',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 36,
@@ -59,8 +61,8 @@ class _SplashScreenState extends State<SplashScreen> {
                 style: TextStyle(color: Colors.white54, fontSize: 14),
               ),
 
-             // const Spacer(),
-              SizedBox(height: 70,),
+              // const Spacer(),
+              SizedBox(height: 70),
               // 2. Onboarding PageView
               SizedBox(
                 height: 100,
@@ -70,9 +72,16 @@ class _SplashScreenState extends State<SplashScreen> {
                     setState(() => _currentPage = page);
                   },
                   children: const [
-                    OnboardingText(text: "Track every move.\nTrade with confidence.\nStay ahead of the market."),
-                    OnboardingText(text: "Real-time alerts for\nGold, Nifty, and more."),
-                    OnboardingText(text: "Join thousands of\nsmart investors today."),
+                    OnboardingText(
+                      text:
+                          "Track every move.\nTrade with confidence.\nStay ahead of the market.",
+                    ),
+                    OnboardingText(
+                      text: "Real-time alerts for\nGold, Nifty, and more.",
+                    ),
+                    OnboardingText(
+                      text: "Join thousands of\nsmart investors today.",
+                    ),
                   ],
                 ),
               ),
@@ -91,26 +100,43 @@ class _SplashScreenState extends State<SplashScreen> {
                 child: Column(
                   children: [
                     ElevatedButton(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen())),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const LoginScreen(),
+                          ),
+                        );
+                      },
+                      // onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen())),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.blue.shade700,
                         minimumSize: const Size(double.infinity, 55),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         elevation: 0,
                       ),
-                      child: const Text('Create an Account', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreen())),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.white38),
-                        minimumSize: const Size(double.infinity, 55),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      child: const Text(
+                        'Get Started',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
-                      child: const Text('I already have an account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
                     ),
+                    // const SizedBox(height: 16),
+                    // OutlinedButton(
+                    //   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LoginScreen())),
+                    //   style: OutlinedButton.styleFrom(
+                    //     side: const BorderSide(color: Colors.white38),
+                    //     minimumSize: const Size(double.infinity, 55),
+                    //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    //   ),
+                    //   child: const Text('I already have an account', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+                    // ),
                   ],
                 ),
               ),
@@ -145,7 +171,12 @@ class OnboardingText extends StatelessWidget {
     return Text(
       text,
       textAlign: TextAlign.center,
-      style: const TextStyle(color: Colors.white, fontSize: 16, height: 1.5, fontWeight: FontWeight.w500),
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 16,
+        height: 1.5,
+        fontWeight: FontWeight.w500,
+      ),
     );
   }
 }

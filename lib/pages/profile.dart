@@ -14,7 +14,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      bottomNavigationBar: CustomBottomNavBar(currentIndex: 3),
+      // bottomNavigationBar: CustomBottomNavBar(currentIndex: 3),
       backgroundColor: const Color(0xFFF8F9FE), // Light background for cards
       body: SingleChildScrollView(
         child: Column(
@@ -32,15 +32,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 24),
 
                   // 3. Account Section
-                  const Text('ACCOUNT',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF8E99AF), letterSpacing: 1.1)),
-                  const SizedBox(height: 12),
-                  _buildAccountCard(),
-                  const SizedBox(height: 24),
+                  // const Text('ACCOUNT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF8E99AF), letterSpacing: 1.1)),
+                  // const SizedBox(height: 12),
+                  // _buildAccountCard(),
+                  // const SizedBox(height: 24),
 
                   // 4. Preferences Section
-                  const Text('PREFERENCES',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF8E99AF), letterSpacing: 1.1)),
+                  const Text(
+                    'PREFERENCES',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF8E99AF),
+                      letterSpacing: 1.1,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   _buildPreferencesCard(),
                   const SizedBox(height: 40), // Space for Bottom Nav
@@ -56,7 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 60, 24, 40),
+      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -67,9 +73,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           Align(
-            alignment: Alignment.topRight,
-            child: _buildEditButton(),
+            alignment: Alignment.topLeft,
+            child: _IconPillButton(
+              icon: Icons.arrow_back,
+              onTap: () => Navigator.maybePop(context),
+            ),
           ),
+
+          Align(alignment: Alignment.topRight, child: _buildEditButton()),
           // Profile Image Avatar
           Container(
             height: 90,
@@ -80,12 +91,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
               border: Border.all(color: Colors.white24, width: 2),
             ),
             child: const Center(
-              child: Text('AS', style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold)),
+              child: Text(
+                'AS',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 16),
-          const Text('Arjun Sharma', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-          const Text('+91 98765 43210', style: TextStyle(color: Colors.white70, fontSize: 14)),
+          const Text(
+            'Arjun Sharma',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Text(
+            '+91 98765 43210',
+            style: TextStyle(color: Colors.white70, fontSize: 14),
+          ),
           const SizedBox(height: 16),
           // Pro Member Badge
           Container(
@@ -99,7 +127,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: const [
                 Icon(Icons.auto_awesome, color: Colors.white, size: 14),
                 SizedBox(width: 6),
-                Text('Pro Member', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                Text(
+                  'Pro Member',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),
@@ -120,7 +155,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: const [
           Icon(Icons.edit, color: Color(0xFFFFB74D), size: 14),
           SizedBox(width: 4),
-          Text('Edit', style: TextStyle(color: Color(0xFFFFB74D), fontWeight: FontWeight.bold, fontSize: 12)),
+          Text(
+            'Edit',
+            style: TextStyle(
+              color: Color(0xFFFFB74D),
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );
@@ -144,13 +186,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          Text(val, style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(
+            val,
+            style: TextStyle(
+              color: color,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text(label, style: const TextStyle(color: Color(0xFF8E99AF), fontSize: 12)),
+          Text(
+            label,
+            style: const TextStyle(color: Color(0xFF8E99AF), fontSize: 12),
+          ),
         ],
       ),
     );
@@ -162,11 +220,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Column(
         children: [
-          _buildSettingsTile(Icons.person, 'Personal Info', 'Name, email, mobile', Colors.blue.shade50, Colors.blue),
+          _buildSettingsTile(
+            Icons.person,
+            'Personal Info',
+            'Name, email, mobile',
+            Colors.blue.shade50,
+            Colors.blue,
+          ),
           const Divider(height: 1, indent: 60),
-          _buildSettingsTile(Icons.security, 'Security', 'Password, PIN, 2FA', Colors.green.shade50, Colors.green),
+          _buildSettingsTile(
+            Icons.security,
+            'Security',
+            'Password, PIN, 2FA',
+            Colors.green.shade50,
+            Colors.green,
+          ),
           const Divider(height: 1, indent: 60),
-          _buildSettingsTile(Icons.credit_card, 'Subscription', 'Pro Plan — Active', Colors.orange.shade50, Colors.orange),
+          _buildSettingsTile(
+            Icons.credit_card,
+            'Subscription',
+            'Pro Plan — Active',
+            Colors.orange.shade50,
+            Colors.orange,
+          ),
         ],
       ),
     );
@@ -181,14 +257,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: ListTile(
           leading: Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(10)),
-            child: const Icon(Icons.notifications_active, color: Colors.amber, size: 20),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.notifications_active,
+              color: Colors.amber,
+              size: 20,
+            ),
           ),
-          title: const Text('Price Alerts', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          subtitle: const Text('Push notifications', style: TextStyle(fontSize: 12, color: Color(0xFF8E99AF))),
+          title: const Text(
+            'Price Alerts',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+          subtitle: const Text(
+            'Push notifications',
+            style: TextStyle(fontSize: 12, color: Color(0xFF8E99AF)),
+          ),
           trailing: Switch(
             value: _priceAlertsEnabled,
-            activeColor: const Color(0xFF00C853),
+            activeThumbColor: const Color(0xFF00C853),
             onChanged: (val) => setState(() => _priceAlertsEnabled = val),
           ),
         ),
@@ -196,17 +285,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSettingsTile(IconData icon, String title, String sub, Color bg, Color iconCol) {
+  Widget _buildSettingsTile(
+    IconData icon,
+    String title,
+    String sub,
+    Color bg,
+    Color iconCol,
+  ) {
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(10),
+        ),
         child: Icon(icon, color: iconCol, size: 20),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-      subtitle: Text(sub, style: const TextStyle(fontSize: 12, color: Color(0xFF8E99AF))),
+      title: Text(
+        title,
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+      ),
+      subtitle: Text(
+        sub,
+        style: const TextStyle(fontSize: 12, color: Color(0xFF8E99AF)),
+      ),
       trailing: const Icon(Icons.chevron_right, color: Color(0xFFD1D5DB)),
       onTap: () {},
+    );
+  }
+}
+
+class _IconPillButton extends StatelessWidget {
+  const _IconPillButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF1F5FB),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Icon(icon, color: const Color(0xFF0D1B2A)),
+      ),
     );
   }
 }

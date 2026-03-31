@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:parvexglobal/extension/extension_functions.dart';
 import 'package:parvexglobal/pages/home_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
@@ -8,7 +8,7 @@ class OtpVerificationScreen extends StatefulWidget {
 
   const OtpVerificationScreen({
     super.key,
-    this.phoneNumber = "+91 98765 43210"
+    this.phoneNumber = "+91 98765 43210",
   });
 
   @override
@@ -21,7 +21,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   Timer? _timer;
 
   // OTP Input Variables
-  final List<TextEditingController> _otpControllers = List.generate(6, (_) => TextEditingController());
+  final List<TextEditingController> _otpControllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   @override
@@ -73,7 +76,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             width: double.infinity,
             child: Image.asset(
               "assets/images/verifyhero.png",
-             // fit: BoxFit.cover,
+              // fit: BoxFit.cover,
               alignment: Alignment.topCenter,
             ),
           ),
@@ -106,8 +109,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           // ),
 
           // 2. White Form Card
-
-          SizedBox(height: 15,),
+          SizedBox(height: 15),
           Align(
             alignment: Alignment.bottomCenter,
             child: Container(
@@ -121,6 +123,27 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // --- Help Checklist ---
+                    // Container(
+                    //   padding: const EdgeInsets.all(20),
+                    //   decoration: BoxDecoration(color: const Color(0xFFF8F9FE), borderRadius: BorderRadius.circular(16)),
+                    //   child: Column(
+                    //     crossAxisAlignment: CrossAxisAlignment.start,
+                    //     children: [
+                    //       const Text("Didn't receive the OTP?", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
+                    //       const SizedBox(height: 16),
+                    //       _buildHelpItem(Icons.check_box, Colors.green, "Check your SMS inbox"),
+                    //       const SizedBox(height: 12),
+                    //       _buildHelpItem(Icons.do_not_disturb_on, Colors.red.shade400, "Make sure DND is not activated"),
+                    //       const SizedBox(height: 12),
+                    //       _buildHelpItem(Icons.refresh, Colors.blue, "Resend OTP (available in $formattedTime)", isLink: true),
+                    //       const SizedBox(height: 12),
+                    //       _buildHelpItem(Icons.call, Colors.blue, "Request via Call instead", isLink: true),
+                    //     ],
+                    //   ),
+                    // ),
+                    // const SizedBox(height: 32),
+
                     // --- Info Bubble ---
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -131,15 +154,30 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.chat_bubble_outline, color: Colors.grey, size: 18),
+                          const Icon(
+                            Icons.chat_bubble_outline,
+                            color: Colors.grey,
+                            size: 18,
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: RichText(
                               text: const TextSpan(
-                                text: 'Your OTP has been sent via SMS. It will expire in ',
-                                style: TextStyle(color: Colors.black87, fontSize: 13, height: 1.4),
+                                text:
+                                    'Your OTP has been sent via SMS. It will expire in ',
+                                style: TextStyle(
+                                  color: Colors.black87,
+                                  fontSize: 13,
+                                  height: 1.4,
+                                ),
                                 children: [
-                                  TextSpan(text: '5 minutes', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                                  TextSpan(
+                                    text: '5 minutes',
+                                    style: TextStyle(
+                                      color: Colors.blue,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -151,12 +189,22 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
                     // --- OTP Input Row ---
                     const Center(
-                      child: Text('ENTER 6-DIGIT OTP', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                      child: Text(
+                        'ENTER 6-DIGIT OTP',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(6, (index) => _buildOTPBox(index)),
+                      children: List.generate(
+                        6,
+                        (index) => _buildOTPBox(index),
+                      ),
                     ),
                     const SizedBox(height: 24),
 
@@ -167,9 +215,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         RichText(
                           text: TextSpan(
                             text: 'Expires in ',
-                            style: const TextStyle(color: Colors.grey, fontSize: 13),
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 13,
+                            ),
                             children: [
-                              TextSpan(text: formattedTime, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                              TextSpan(
+                                text: formattedTime,
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -177,7 +234,14 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           children: const [
                             Icon(Icons.refresh, color: Colors.grey, size: 16),
                             SizedBox(width: 4),
-                            Text('Resend OTP', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text(
+                              'Resend OTP',
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -186,41 +250,29 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
                     ElevatedButton(
                       onPressed: () {
-
-                        Navigator.push(context, MaterialPageRoute(builder: (context)=>HomeScreen()));
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => HomeScreen()),
+                        );
                         String otp = _otpControllers.map((c) => c.text).join();
                         print("Verifying OTP: $otp");
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2979FF),
                         minimumSize: const Size(double.infinity, 55),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                         elevation: 0,
                       ),
-                      child: const Text('Verify & Continue ->', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // --- Help Checklist ---
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8F9FE),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text("Didn't receive the OTP?", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black87)),
-                          const SizedBox(height: 16),
-                          _buildHelpItem(Icons.check_box, Colors.green, "Check your SMS inbox"),
-                          const SizedBox(height: 12),
-                          _buildHelpItem(Icons.do_not_disturb_on, Colors.red.shade400, "Make sure DND is not activated"),
-                          const SizedBox(height: 12),
-                          _buildHelpItem(Icons.refresh, Colors.blue, "Resend OTP (available in $formattedTime)", isLink: true),
-                          const SizedBox(height: 12),
-                          _buildHelpItem(Icons.call, Colors.blue, "Request via Call instead", isLink: true),
-                        ],
+                      child: const Text(
+                        'Verify & Continue',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -232,11 +284,17 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           text: 'Wrong number? ',
                           style: TextStyle(color: Colors.grey, fontSize: 13),
                           children: [
-                            TextSpan(text: 'Change Mobile', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                            TextSpan(
+                              text: 'Change Mobile',
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    ),
+                    ).onClick(() => {Navigator.pop(context)}),
                     const SizedBox(height: 20),
                   ],
                 ),
@@ -260,10 +318,16 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         focusNode: _focusNodes[index],
         keyboardType: TextInputType.number,
         textAlign: TextAlign.center,
-        maxLength: 1, // Restrict to 1 character
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.blue),
+        maxLength: 1,
+        // Restrict to 1 character
+        style: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: Colors.blue,
+        ),
         decoration: InputDecoration(
-          counterText: "", // Hides the "0/1" counter
+          counterText: "",
+          // Hides the "0/1" counter
           filled: true,
           fillColor: Colors.white,
           contentPadding: EdgeInsets.zero,
@@ -291,7 +355,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   }
 
   // Help Checklist Item
-  Widget _buildHelpItem(IconData icon, Color iconColor, String text, {bool isLink = false}) {
+  Widget _buildHelpItem(
+    IconData icon,
+    Color iconColor,
+    String text, {
+    bool isLink = false,
+  }) {
     return Row(
       children: [
         Icon(icon, color: iconColor, size: 18),

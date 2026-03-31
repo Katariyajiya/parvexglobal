@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:parvexglobal/extension/extension_functions.dart';
 import 'package:parvexglobal/helper/bottom_navigation_bar.dart';
 
 import 'add_instrument.dart';
@@ -6,7 +7,7 @@ import 'instrument_detail.dart';
 import 'profile.dart'; // Ensure this matches your profile file name
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -16,19 +17,27 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         title: RichText(
-            text: const TextSpan(
-                text: 'Market',
-                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 20),
-                children:[
-                  TextSpan(
-                    text: 'Watch',
-                    style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 20),
-                  )
-                ]
-            )
+          text: const TextSpan(
+            text: 'Market ',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+            children: [
+              TextSpan(
+                text: 'Watch',
+                style: TextStyle(
+                  color: Colors.blueAccent,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                ),
+              ),
+            ],
+          ),
         ),
         actions: [
-          _buildAppBarAction(Icons.notifications_none_outlined, () {}),
+          // _buildAppBarAction(Icons.notifications_none_outlined, () {}),
           _buildAppBarAction(Icons.search, () {
             Navigator.push(
               context,
@@ -39,7 +48,15 @@ class HomeScreen extends StatelessWidget {
             padding: EdgeInsets.only(right: 16, left: 8),
             child: CircleAvatar(
               backgroundColor: Color(0xFF2979FF),
-              child: Text('AS', style: TextStyle(color: Colors.white, fontSize: 14)),
+              child: Text(
+                'AS',
+                style: TextStyle(color: Colors.white, fontSize: 14),
+              ),
+            ),
+          ).onClick(
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ProfileScreen()),
             ),
           ),
         ],
@@ -48,59 +65,78 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           children: [
             // 1. Ticker Tape
-            Container(
-              height: 45,
-              color: const Color(0xFF101828),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                children: [
-                  _buildTickerItem('NIFTY', '22,450', '0.42%', true),
-                  _buildTickerItem('SENSEX', '73,950', '0.34%', true),
-                  _buildTickerItem('GOLD', '62,840', '0.31%', false),
-                  _buildTickerItem('SILVER', '74,130', '1.15%', true),
-                ],
-              ),
-            ),
-
+            // Container(
+            //   height: 45,
+            //   color: const Color(0xFF101828),
+            //   child: ListView(
+            //     scrollDirection: Axis.horizontal,
+            //     padding: const EdgeInsets.symmetric(horizontal: 10),
+            //     children: [
+            //       _buildTickerItem('NIFTY', '22,450', '0.42%', true),
+            //       _buildTickerItem('SENSEX', '73,950', '0.34%', true),
+            //       _buildTickerItem('GOLD', '62,840', '0.31%', false),
+            //       _buildTickerItem('SILVER', '74,130', '1.15%', true),
+            //     ],
+            //   ),
+            // ),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // 2. Market Pulse Section
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Market Pulse', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      TextButton(onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const AddInstrument()));
-                      }, child: const Text('See all →', style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold))),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 100,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        _buildPulseCard('NIFTY 50', '22,450', '0.42%', true),
-                        _buildPulseCard('BANK NIFTY', '47,820', '0.18%', false),
-                        _buildPulseCard('MCX GOLD', '62,840', '0.31%', false),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
+                  // Row(
+                  //   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  //   children: [
+                  //     const Text('Market Pulse', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  //     TextButton(onPressed: () {
+                  //       Navigator.push(context, MaterialPageRoute(builder: (context) => const AddInstrument()));
+                  //     }, child: const Text('See all →', style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold))),
+                  //   ],
+                  // ),
+                  // const SizedBox(height: 8),
+                  // SizedBox(
+                  //   height: 100,
+                  //   child: ListView(
+                  //     scrollDirection: Axis.horizontal,
+                  //     children: [
+                  //       _buildPulseCard('NIFTY 50', '22,450', '0.42%', true),
+                  //       _buildPulseCard('BANK NIFTY', '47,820', '0.18%', false),
+                  //       _buildPulseCard('MCX GOLD', '62,840', '0.31%', false),
+                  //     ],
+                  //   ),
+                  // ),
+                  //
+                  // const SizedBox(height: 18),
 
                   // 3. Watchlist Section
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('My Watchlist', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      TextButton(onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => const AddInstrument()));
-                      }, child: const Text('+ Add', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
+                      const Text(
+                        'My Watchlist',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const AddInstrument(),
+                            ),
+                          );
+                        },
+                        child: const Text(
+                          '+ Add',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
 
@@ -148,10 +184,7 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
       // --- UPDATED BOTTOM NAV ---
-      bottomNavigationBar: CustomBottomNavBar(
-          currentIndex: 0,
-
-      ),
+      // bottomNavigationBar: CustomBottomNavBar(currentIndex: 0),
     );
   }
 
@@ -160,25 +193,55 @@ class HomeScreen extends StatelessWidget {
   Widget _buildAppBarAction(IconData icon, VoidCallback onTap) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
-      child: IconButton(icon: Icon(icon, color: Colors.black54, size: 20), onPressed: onTap),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.black54, size: 20),
+        onPressed: onTap,
+      ),
     );
   }
 
-  Widget _buildTickerItem(String name, String price, String percent, bool isPositive) {
+  Widget _buildTickerItem(
+    String name,
+    String price,
+    String percent,
+    bool isPositive,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(right: 20),
       child: Row(
         children: [
-          Text('$name ', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-          Icon(isPositive ? Icons.arrow_drop_up : Icons.arrow_drop_down, color: isPositive ? Colors.green : Colors.red, size: 18),
-          Text(price, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+          Text(
+            '$name ',
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          Icon(
+            isPositive ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+            color: isPositive ? Colors.green : Colors.red,
+            size: 18,
+          ),
+          Text(
+            price,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildPulseCard(String title, String price, String percent, bool isPositive) {
+  Widget _buildPulseCard(
+    String title,
+    String price,
+    String percent,
+    bool isPositive,
+  ) {
     return Container(
       width: 140,
       margin: const EdgeInsets.only(right: 12),
@@ -194,11 +257,25 @@ class HomeScreen extends StatelessWidget {
         children: [
           Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
           const SizedBox(height: 4),
-          Text(price, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(
+            price,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           Row(
             children: [
-              Icon(isPositive ? Icons.arrow_drop_up : Icons.arrow_drop_down, color: isPositive ? Colors.green : Colors.red, size: 16),
-              Text(percent, style: TextStyle(color: isPositive ? Colors.green : Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+              Icon(
+                isPositive ? Icons.arrow_drop_up : Icons.arrow_drop_down,
+                color: isPositive ? Colors.green : Colors.red,
+                size: 16,
+              ),
+              Text(
+                percent,
+                style: TextStyle(
+                  color: isPositive ? Colors.green : Colors.red,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
         ],
@@ -206,56 +283,130 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildWatchlistCard(BuildContext context, {required String title, required List<String> tags, required String price, required String change, required bool isPositive, required Color accentColor, required Map<String, String> details}) {
+  Widget _buildWatchlistCard(
+    BuildContext context, {
+    required String title,
+    required List<String> tags,
+    required String price,
+    required String change,
+    required bool isPositive,
+    required Color accentColor,
+    required Map<String, String> details,
+  }) {
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => const InstrumentDetailScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const InstrumentDetailScreen(),
+          ),
+        );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
+        margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.grey.shade200),
         ),
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(width: 4, height: 40, decoration: BoxDecoration(color: accentColor, borderRadius: BorderRadius.circular(2))),
-                  const SizedBox(width: 12),
+                  Container(
+                    width: 3,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: accentColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+
+                  /// LEFT SIDE
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 4),
-                        Wrap(spacing: 6, children: tags.map((t) => _buildTag(t)).toList()),
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: -6,
+                          children: tags.map((t) => _buildTag(t)).toList(),
+                        ),
                       ],
                     ),
                   ),
+
+                  /// RIGHT SIDE
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(price, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                      Text('${isPositive ? '▲' : '▼'} $change', style: TextStyle(color: isPositive ? Colors.green : Colors.red, fontSize: 13, fontWeight: FontWeight.bold)),
+                      Text(
+                        price,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '${isPositive ? '▲' : '▼'} $change',
+                        style: TextStyle(
+                          color: isPositive ? Colors.green : Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
+
             const Divider(height: 1),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 3,
-                childAspectRatio: 2.5,
-                children: details.entries.map((e) => _buildDetailItem(e.key, e.value, isHighlight: e.key == 'LTP')).toList(),
+
+            /// DETAILS GRID
+            Container(
+              // color: Colors.yellow,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: Column(
+                children: [
+                  Row(
+                    children:
+                        details.entries.take(3).map((entry) {
+                          return Expanded(
+                            child: _buildDetailItem(
+                              entry.key,
+                              entry.value,
+                              isHighlight: entry.key == 'LTP',
+                            ),
+                          );
+                        }).toList(),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children:
+                        details.entries.skip(3).take(3).map((entry) {
+                          return Expanded(
+                            child: _buildDetailItem(
+                              entry.key,
+                              entry.value,
+                              isHighlight: entry.key == 'LTP',
+                            ),
+                          );
+                        }).toList(),
+                  ),
+                ],
               ),
             ),
           ],
@@ -272,17 +423,42 @@ class HomeScreen extends StatelessWidget {
         color: isDate ? Colors.orange.shade50 : Colors.blue.shade50,
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label, style: TextStyle(color: isDate ? Colors.orange.shade700 : Colors.blue.shade700, fontSize: 10, fontWeight: FontWeight.bold)),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: isDate ? Colors.orange.shade700 : Colors.blue.shade700,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 
-  Widget _buildDetailItem(String label, String value, {bool isHighlight = false}) {
+  Widget _buildDetailItem(
+    String label,
+    String value, {
+    bool isHighlight = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         const SizedBox(height: 2),
-        Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isHighlight ? Colors.red.shade400 : Colors.black87)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            color: isHighlight ? Colors.red.shade400 : Colors.black87,
+          ),
+        ),
       ],
     );
   }

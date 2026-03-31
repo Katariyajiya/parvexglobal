@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({Key? key}) : super(key: key);
+  const RegisterScreen({super.key});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -24,7 +24,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Image.asset(
               "assets/images/authbg.png",
               alignment: Alignment.topCenter,
-           //   fit: BoxFit.cover, // Added fit to ensure background looks right
+              //   fit: BoxFit.cover, // Added fit to ensure background looks right
             ),
           ),
 
@@ -34,11 +34,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
               height: MediaQuery.of(context).size.height * 0.78,
               padding: const EdgeInsets.all(24),
               decoration: const BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5))
-                  ]
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 10,
+                    offset: Offset(0, -5),
+                  ),
+                ],
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -72,10 +76,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           },
                         ),
                         const Expanded(
-                            child: Text(
-                                'I agree to the Terms of Service and Privacy Policy',
-                                style: TextStyle(fontSize: 12)
-                            )
+                          child: Text(
+                            'I agree to the Terms of Service and Privacy Policy',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
                       ],
                     ),
@@ -83,21 +87,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                     ElevatedButton(
                       // 3. Conditional onPressed: only navigate if _isAgreed is true
-                      onPressed: _isAgreed
-                          ? () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HomeScreen()))
-                          : null, // Disables button if false
+                      onPressed:
+                          _isAgreed
+                              ? () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const HomeScreen(),
+                                ),
+                              )
+                              : null, // Disables button if false
                       style: ElevatedButton.styleFrom(
                         // If disabled, it will automatically use a greyish color
                         backgroundColor: Colors.blue.shade600,
                         minimumSize: const Size(double.infinity, 50),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text('Create Account ', style: TextStyle(color: Colors.white)),
-                          const SizedBox(width: 10,),
-                          Image.asset("assets/images/arrow1.png", scale: 3,)
+                          const Text(
+                            'Create Account ',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                          const SizedBox(width: 10),
+                          Image.asset("assets/images/arrow1.png", scale: 3),
                         ],
                       ),
                     ),
@@ -112,11 +127,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _buildTextField(String label, String hint, {bool obscureText = false}) {
+  Widget _buildTextField(
+    String label,
+    String hint, {
+    bool obscureText = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey,
+          ),
+        ),
         const SizedBox(height: 8),
         TextField(
           obscureText: obscureText,
@@ -124,8 +150,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
             hintText: hint,
             filled: true,
             fillColor: Colors.grey.shade50,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
       ],

@@ -154,7 +154,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     // --- Sign In Button ---
                     ElevatedButton(
-                      onPressed: ()=> Navigator.push(context, MaterialPageRoute(builder: (context)=>OtpVerificationScreen())),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(context, MaterialPageRoute(builder: (context)=>OtpVerificationScreen()));
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2979FF),
                         minimumSize: const Size(double.infinity, 55),
@@ -169,23 +172,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 32),
 
                     // --- Register Now Link ---
-                    Center(
-                      child: GestureDetector(
-                        onTap: () {},
-                        child: RichText(
-                          text: const TextSpan(
-                            text: "Don't have an account? ",
-                            style: TextStyle(color: Colors.grey, fontSize: 13),
-                            children: [
-                              TextSpan(
-                                text: 'Register Now',
-                                style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
+                    // Center(
+                    //   child: GestureDetector(
+                    //     onTap: () {},
+                    //     child: RichText(
+                    //       text: const TextSpan(
+                    //         text: "Don't have an account? ",
+                    //         style: TextStyle(color: Colors.grey, fontSize: 13),
+                    //         children: [
+                    //           TextSpan(
+                    //             text: 'Register Now',
+                    //             style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                    //           ),
+                    //         ],
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),

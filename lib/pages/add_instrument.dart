@@ -89,44 +89,29 @@ class _AddInstrumentState extends State<AddInstrument> {
     ),
   ];
 
-  int _bottomIndex = 0;
+  final int _bottomIndex = 0;
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFFF3F6FB);
+    const bg = Color(0xFFF8F8F8);
     const card = Colors.white;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FF),
-      bottomNavigationBar:CustomBottomNavBar(currentIndex: 1),
+      backgroundColor: const Color(0xFFF6F6F6),
+      // bottomNavigationBar:CustomBottomNavBar(currentIndex: 1),
       body: SafeArea(
         child: Column(
           children: [
             // Top app bar
             Container(
               color: Colors.white,
-              padding:  EdgeInsets.only(left:16,top: 25,right:  16,bottom:  14),
+              padding: EdgeInsets.only(left: 16, top: 10, right: 16),
               child: Row(
                 children: [
-                  _IconPillButton(
-                    icon: Icons.arrow_back,
-                    onTap: () => Navigator.maybePop(context),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      "Add to Watchlist",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0D1B2A),
-                      ),
-                    ),
-                  ),
-                  _IconPillButton(
-                    icon: Icons.settings,
-                    onTap: () {},
-                  ),
+                  _IconPillButton(icon: Icons.arrow_back, onTap: () => Navigator.maybePop(context)),
+                  const SizedBox(width: 10),
+                  const Expanded(child: Text("Add to Watchlist", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF0D1B2A)))),
+                  // _IconPillButton(icon: Icons.settings, onTap: () {}),
                 ],
               ),
             ),
@@ -134,49 +119,36 @@ class _AddInstrumentState extends State<AddInstrument> {
             // Search
             Container(
               color: Colors.white,
-              padding: const EdgeInsets.only(left: 16,top: 12,right:  16,bottom:  14),
-              child: _SearchField(
-                hintText: "Search instrument, symbol...",
-                onChanged: (_) {},
-              ),
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 0, bottom: 14),
+              child: _SearchField(hintText: "Search instrument, symbol...", onChanged: (_) {}),
             ),
 
             // Tabs
             Container(
               color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
               child: SizedBox(
-                height: 46,
+                height: 32,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: _tabs.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 10),
                   itemBuilder: (context, i) {
                     final selected = i == _selectedTab;
-                    return _ChipTab(
-                      label: _tabs[i],
-                      selected: selected,
-                      onTap: () => setState(() => _selectedTab = i),
-                    );
+                    return _ChipTab(label: _tabs[i], selected: selected, onTap: () => setState(() => _selectedTab = i));
                   },
                 ),
               ),
             ),
 
-            const SizedBox(height: 12),
-
             // List
             Expanded(
               child: ListView.separated(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 itemCount: _items.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                separatorBuilder: (_, __) => Container(height: 1, margin: EdgeInsets.only(bottom: 0.5)),
                 itemBuilder: (context, i) {
                   final item = _items[i];
-                  return _WatchTile(
-                    item: item,
-                    onToggle: () => setState(() => item.added = !item.added),
-                  );
+                  return _WatchTile(item: item, onToggle: () => setState(() => item.added = !item.added));
                 },
               ),
             ),
@@ -188,10 +160,7 @@ class _AddInstrumentState extends State<AddInstrument> {
 }
 
 class _SearchField extends StatelessWidget {
-  const _SearchField({
-    required this.hintText,
-    required this.onChanged,
-  });
+  const _SearchField({required this.hintText, required this.onChanged});
 
   final String hintText;
   final ValueChanged<String> onChanged;
@@ -199,12 +168,8 @@ class _SearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 56,
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5FB),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE0E7F1)),
-      ),
+      height: 38,
+      decoration: BoxDecoration(color: const Color(0xFFF8F8F8), borderRadius: BorderRadius.circular(4), border: Border.all(color: const Color(0xFFE0E7F1))),
       padding: const EdgeInsets.symmetric(horizontal: 14),
       child: Row(
         children: [
@@ -214,11 +179,9 @@ class _SearchField extends StatelessWidget {
             child: TextField(
               onChanged: onChanged,
               decoration: InputDecoration(
+                isDense: true,
                 hintText: hintText,
-                hintStyle: const TextStyle(
-                  color: Color(0xFF9AA8BD),
-                  fontWeight: FontWeight.w600,
-                ),
+                hintStyle: const TextStyle(color: Color(0xFF9AA8BD), fontWeight: FontWeight.w500),
                 border: InputBorder.none,
               ),
             ),
@@ -238,11 +201,7 @@ class _SearchField extends StatelessWidget {
 }
 
 class _ChipTab extends StatelessWidget {
-  const _ChipTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+  const _ChipTab({required this.label, required this.selected, required this.onTap});
 
   final String label;
   final bool selected;
@@ -255,13 +214,13 @@ class _ChipTab extends StatelessWidget {
     final border = selected ? const Color(0xFF1F63FF) : const Color(0xFFDEE6F1);
 
     return InkWell(
-      borderRadius: BorderRadius.circular(24),
+      borderRadius: BorderRadius.circular(4),
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(4),
           border: Border.all(color: border, width: 1.4),
           // boxShadow: selected
           //     ? [
@@ -273,17 +232,7 @@ class _ChipTab extends StatelessWidget {
           // ]
           //     : null,
         ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              color: fg,
-              fontWeight: FontWeight.w800,
-              fontSize: 14,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ),
+        child: Center(child: Text(label, style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 12))),
       ),
     );
   }
@@ -303,10 +252,7 @@ class _IconPillButton extends StatelessWidget {
       child: Container(
         width: 46,
         height: 46,
-        decoration: BoxDecoration(
-          color: const Color(0xFFF1F5FB),
-          borderRadius: BorderRadius.circular(16),
-        ),
+        // decoration: BoxDecoration(color: const Color(0xFFF1F5FB), borderRadius: BorderRadius.circular(16)),
         child: Icon(icon, color: const Color(0xFF0D1B2A)),
       ),
     );
@@ -350,159 +296,70 @@ class _WatchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAdded = item.added;
-    final bg = isAdded ? const Color(0xFFF2FFF7) : Colors.white;
-    final border = isAdded ? const Color(0xFFBFEFD0) : const Color(0xFFE2EAF4);
 
     return Container(
-      width: MediaQuery.sizeOf(context).width,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          )
-        ],
-      ),
+      padding: const EdgeInsets.only(bottom: 6, left: 14, right: 14, top: 6),
+      color: Colors.white,
       child: Row(
         children: [
-          // Leading icon
+          /// Title
+          Expanded(child: Text(item.title.toUpperCase(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF2B2B2B)))),
+
+          /// Exchange label
           Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: item.iconBg,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            alignment: Alignment.center,
-            child: Text(item.icon, style: const TextStyle(fontSize: 22)),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(color: const Color(0xFFF1F1F1), borderRadius: BorderRadius.circular(6)),
+            child: const Text("INDICES", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey)),
           ),
+
           const SizedBox(width: 12),
 
-          // Texts
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        item.title,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF0D1B2A),
-                        ),
-                      ),
-                    ),
-                    if (isAdded) ...[
-                      const SizedBox(width: 10),
-                      Container(
-                        // padding: const EdgeInsets.symmetric(
-                        //   horizontal: 10,
-                        //   vertical: 6,
-                        // ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFD9FFE8),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.check, size: 16, color: Color(0xFF0AAE6D)),
-                            SizedBox(width: 6),
-                            Text(
-                              "Added",
-                              style: TextStyle(
-                                color: Color(0xFF0AAE6D),
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  item.subtitle1,
-                  style: const TextStyle(
-                    color: Color(0xFF5D6E86),
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
-                if (item.subtitle2.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    item.subtitle2,
-                    style: const TextStyle(
-                      color: Color(0xFF5D6E86),
-                      fontWeight: FontWeight.w300,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+          // /// Chart button
+          // Container(
+          //   width: 36,
+          //   height: 36,
+          //   decoration: BoxDecoration(
+          //     border: Border.all(color: Colors.grey.shade300),
+          //     borderRadius: BorderRadius.circular(6),
+          //   ),
+          //   child: const Icon(
+          //     Icons.show_chart,
+          //     size: 20,
+          //     color: Colors.black54,
+          //   ),
+          // ),
+          //
+          // const SizedBox(width: 8),
+          //
+          // /// List button
+          // Container(
+          //   width: 36,
+          //   height: 36,
+          //   decoration: BoxDecoration(
+          //     border: Border.all(color: Colors.grey.shade300),
+          //     borderRadius: BorderRadius.circular(6),
+          //   ),
+          //   child: const Icon(
+          //     Icons.format_list_bulleted,
+          //     size: 20,
+          //     color: Colors.black54,
+          //   ),
+          // ),
+          //
+          // const SizedBox(width: 8),
 
-          const SizedBox(width: 10),
-
-          // Right side: price + change + action
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                item.price,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF0D1B2A),
-                ),
-              ),
-             // const SizedBox(height: 6),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    item.changeUp ? Icons.arrow_drop_up : Icons.arrow_drop_down,
-                    color: item.changeUp ? const Color(0xFF0AAE6D) : const Color(0xFFFF3B5C),
-                    size: 20,
-                  ),
-                  Text(
-                    item.change,
-                    style: TextStyle(
-                      color: item.changeUp ? const Color(0xFF0AAE6D) : const Color(0xFFFF3B5C),
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
-
-          // Action button (plus / X)
-          InkWell(
+          /// Add button
+          GestureDetector(
             onTap: onToggle,
-            borderRadius: BorderRadius.circular(28),
             child: Container(
               width: 30,
               height: 30,
-              decoration: BoxDecoration(
-                color: isAdded ? const Color(0xFFFFEFF2) : const Color(0xFF1F63FF),
-                shape: BoxShape.circle,
-              ),
+              decoration: BoxDecoration(color: isAdded ? Colors.grey[200] : Color(0xFF2FB344), borderRadius: BorderRadius.circular(4)),
               child: Icon(
+                // Icons.add,
                 isAdded ? Icons.close : Icons.add,
                 color: isAdded ? const Color(0xFFFF3B5C) : Colors.white,
+                size: 22,
               ),
             ),
           ),
@@ -513,10 +370,7 @@ class _WatchTile extends StatelessWidget {
 }
 
 class _BottomBar extends StatelessWidget {
-  const _BottomBar({
-    required this.currentIndex,
-    required this.onTap,
-  });
+  const _BottomBar({required this.currentIndex, required this.onTap});
 
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -546,12 +400,7 @@ class _BottomBar extends StatelessWidget {
               BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: "Profile"),
             ],
           ),
-          Positioned(
-            top: -26,
-            child: _CenterFab(
-              onTap: () {},
-            ),
-          ),
+          Positioned(top: -26, child: _CenterFab(onTap: () {})),
         ],
       ),
     );
@@ -560,6 +409,7 @@ class _BottomBar extends StatelessWidget {
 
 class _CenterFab extends StatelessWidget {
   const _CenterFab({required this.onTap});
+
   final VoidCallback onTap;
 
   @override
@@ -573,13 +423,7 @@ class _CenterFab extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF00C389),
           shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF00C389).withOpacity(0.28),
-              blurRadius: 18,
-              offset: const Offset(0, 10),
-            ),
-          ],
+          boxShadow: [BoxShadow(color: const Color(0xFF00C389).withOpacity(0.28), blurRadius: 18, offset: const Offset(0, 10))],
         ),
         child: const Icon(Icons.check, color: Colors.white, size: 30),
       ),
