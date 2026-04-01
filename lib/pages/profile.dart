@@ -277,7 +277,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           trailing: Switch(
             value: _priceAlertsEnabled,
-            activeThumbColor: const Color(0xFF00C853),
+            activeTrackColor: const Color(0xFF00C853),
             onChanged: (val) => setState(() => _priceAlertsEnabled = val),
           ),
         ),

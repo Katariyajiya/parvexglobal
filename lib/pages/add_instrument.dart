@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../helper/bottom_navigation_bar.dart';
+import '../models/search_instrument_model.dart';
+import '../services/RestApiServices.dart';
+import '../utils/user_session.dart';
 
 class AddInstrument extends StatefulWidget {
   const AddInstrument({super.key});
@@ -11,6 +16,25 @@ class AddInstrument extends StatefulWidget {
 
 class _AddInstrumentState extends State<AddInstrument> {
   int _selectedTab = 0;
+
+  int _requestId = 0;
+  String _lastQuery = "";
+
+  final TextEditingController searchController = TextEditingController();
+
+  List<SearchInstrumentModel> searchResults = [];
+  bool isLoading = false;
+
+
+  Timer? _debounce;
+
+  void onSearchChanged(String value) {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      searchInstrument(value);
+    });
+  }
 
   final _tabs = const ["All", "NFO", "MCX", "COMEX", "UAE"];
 
@@ -91,6 +115,42 @@ class _AddInstrumentState extends State<AddInstrument> {
 
   final int _bottomIndex = 0;
 
+  Future<void> searchInstrument(String query) async {
+    if (query.isEmpty) return;
+
+    final int requestId = ++_requestId; // 🔥 ADD THIS
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final api = RestApiService();
+
+      final results = await api.searchInstruments(
+        query: query,
+        exchange: _tabs[_selectedTab],
+      );
+
+      // ❗ IMPORTANT: Ignore old responses
+      if (requestId != _requestId) return;
+
+      setState(() {
+        searchResults = results;
+      });
+
+    } catch (e) {
+      print(e);
+    } finally {
+      // ❗ also protect loading state
+      if (requestId == _requestId) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     const bg = Color(0xFFF8F8F8);
@@ -120,7 +180,10 @@ class _AddInstrumentState extends State<AddInstrument> {
             Container(
               color: Colors.white,
               padding: const EdgeInsets.only(left: 16, right: 16, top: 0, bottom: 14),
-              child: _SearchField(hintText: "Search instrument, symbol...", onChanged: (_) {}),
+              child: _SearchField(
+                  hintText: "Search instrument, symbol...",
+                onChanged:onSearchChanged
+              ),
             ),
 
             // Tabs
@@ -135,7 +198,16 @@ class _AddInstrumentState extends State<AddInstrument> {
                   separatorBuilder: (_, __) => const SizedBox(width: 10),
                   itemBuilder: (context, i) {
                     final selected = i == _selectedTab;
-                    return _ChipTab(label: _tabs[i], selected: selected, onTap: () => setState(() => _selectedTab = i));
+                    return _ChipTab(label: _tabs[i], selected: selected,
+                      onTap: () {
+                        setState(() {
+                          _selectedTab = i;
+                          searchResults.clear();
+                        });
+
+                        _requestId++;
+                      },
+                    );
                   },
                 ),
               ),
@@ -143,12 +215,87 @@ class _AddInstrumentState extends State<AddInstrument> {
 
             // List
             Expanded(
-              child: ListView.separated(
-                itemCount: _items.length,
-                separatorBuilder: (_, __) => Container(height: 1, margin: EdgeInsets.only(bottom: 0.5)),
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : searchResults.isEmpty
+                  ? const Center(child: Text("No results found"))
+                  : ListView.separated(
+                itemCount: searchResults.length,
+                separatorBuilder: (_, __) => const Divider(),
                 itemBuilder: (context, i) {
-                  final item = _items[i];
-                  return _WatchTile(item: item, onToggle: () => setState(() => item.added = !item.added));
+                  final item = searchResults[i];
+
+                  print(searchResults[i]);
+
+                  return ListTile(
+                    title: Text(item.name),
+                    subtitle: Text("${item.exchange} • ${item.symbol}"),
+                    trailing: GestureDetector(
+                      onTap: () async {
+                        print("instrumentId => ${item.instrumentId}");
+                        print("isAdded => ${item.isAdded}");
+                        print("userId => ${UserSession.userId}");
+                        final api = RestApiService();
+
+                        // Show loader
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (_) => const Center(child: CircularProgressIndicator()),
+                        );
+
+                        bool success = false;
+
+                        if (!item.isAdded) {
+                          // ➕ ADD
+                          success = await api.addToWatchlist(
+                            instrumentId: item.instrumentId,
+                          );
+                        } else {
+                          // ❌ REMOVE
+                          success = await api.removeFromWatchlist(
+                            instrumentId: item.instrumentId,
+                          );
+                        }
+
+                        Navigator.pop(context); // close loader
+
+                        if (success) {
+                          setState(() {
+                            item.isAdded = !item.isAdded; // 🔥 TOGGLE STATE
+                          });
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                item.isAdded
+                                    ? "Added to Watchlist"
+                                    : "Removed from Watchlist",
+                              ),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Something went wrong")),
+                          );
+                        }
+                      },
+
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: item.isAdded ? Colors.grey[200] : const Color(0xFF2FB344),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          item.isAdded ? Icons.close : Icons.add,
+                          color: item.isAdded ? Colors.red : Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  );
                 },
               ),
             ),

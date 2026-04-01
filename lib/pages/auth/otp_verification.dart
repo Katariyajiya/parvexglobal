@@ -3,12 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:parvexglobal/extension/extension_functions.dart';
 import 'package:parvexglobal/pages/home_screen.dart';
 
+import '../../models/verify_otp_request.dart';
+import '../../services/RestApiServices.dart';
+import '../../utils/user_session.dart';
+
 class OtpVerificationScreen extends StatefulWidget {
   final String phoneNumber;
 
   const OtpVerificationScreen({
     super.key,
-    this.phoneNumber = "+91 98765 43210",
+    // this.phoneNumber = "+91 98765 43210",
+    required this.phoneNumber,
   });
 
   @override
@@ -16,6 +21,7 @@ class OtpVerificationScreen extends StatefulWidget {
 }
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
+  bool isLoading = false;
   // Timer variables
   int _secondsRemaining = 208; // 3 minutes and 28 seconds
   Timer? _timer;
@@ -26,6 +32,63 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     (_) => TextEditingController(),
   );
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
+
+
+
+
+  //verify otp function
+  Future<void> handleVerifyOtp() async {
+    String otp = _otpControllers.map((c) => c.text).join();
+
+    if (otp.length != 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Enter complete OTP")),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final api = RestApiService();
+
+      final response = await api.verifyOtp(
+        VerifyOtpRequest(
+          email: widget.phoneNumber, // ⚠️ using email for now
+          otp: otp,
+        ),
+      );
+
+      print("RAW RESPONSE => ${response.data}");
+
+      UserSession.userId = response.userId;
+      UserSession.token = response.token;
+
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.message)),
+      );
+
+      // TODO: store token (next step)
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => HomeScreen()),
+            (route) => false,
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -172,7 +235,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                 ),
                                 children: [
                                   TextSpan(
-                                    text: '5 minutes',
+                                    text: '3 minutes',
                                     style: TextStyle(
                                       color: Colors.blue,
                                       fontWeight: FontWeight.bold,
@@ -249,15 +312,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                     const SizedBox(height: 24),
 
                     ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => HomeScreen()),
-                        );
-                        String otp = _otpControllers.map((c) => c.text).join();
-                        print("Verifying OTP: $otp");
-                      },
+                      onPressed: isLoading ? null : handleVerifyOtp,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2979FF),
                         minimumSize: const Size(double.infinity, 55),
@@ -266,7 +321,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         ),
                         elevation: 0,
                       ),
-                      child: const Text(
+                      child: isLoading
+                      ? CircularProgressIndicator(color: Colors.blueAccent,)
+                      :const Text(
                         'Verify & Continue',
                         style: TextStyle(
                           color: Colors.white,

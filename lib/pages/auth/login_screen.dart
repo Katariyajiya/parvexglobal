@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:parvexglobal/pages/auth/otp_verification.dart';
 
+import '../../models/otp_request_model.dart';
+import '../../services/RestApiServices.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -9,7 +12,61 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController phoneController = TextEditingController();
+  bool isLoading = false;
   bool isMobileOTP = true; // State to handle the toggle switch
+
+  Future<void> handleGetOtp() async {
+    if (phoneController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter mobile number")),
+      );
+      return;
+    }
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final authApi = RestApiService();
+
+      // ⚠️ IMPORTANT:
+      // Your backend currently expects EMAIL
+      // So either:
+      // 1. Change backend to accept phone
+      // OR
+      // 2. Send dummy email for now
+
+      final response = await authApi.requestOtp(
+        OtpRequestModel(
+          email: phoneController.text, // adjust based on backend
+        ),
+      );
+
+      // SUCCESS
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(response.message)),
+      );
+
+      // Navigate only after success
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => OtpVerificationScreen(
+           phoneNumber: phoneController.text,
+        )),
+      );
+
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,6 +171,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         // Phone Number TextField
                         Expanded(
                           child: TextField(
+                            controller: phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
                               hintText: '98765 43210',
@@ -154,10 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     // --- Sign In Button ---
                     ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.push(context, MaterialPageRoute(builder: (context)=>OtpVerificationScreen()));
-                      },
+                      onPressed :isLoading ? null : handleGetOtp,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2979FF),
                         minimumSize: const Size(double.infinity, 55),
