@@ -95,6 +95,11 @@ class RestApiService {
           "exchange": exchange,
           "query": query,
         },
+        options: Options(
+          headers: {
+            "userId": UserSession.userId,
+          },
+        ),
       );
 
       final List data = response.data;
@@ -125,16 +130,19 @@ class RestApiService {
         ),
       );
 
-      print("statusCode => ${response.statusCode}");
-      print("response => ${response.data}");
-
       return response.statusCode == 200 ||
           response.statusCode == 201;
+
     } on DioException catch (e) {
-      print("request body => ${e.requestOptions.data}");
-      print("request headers => ${e.requestOptions.headers}");
-      print("response status => ${e.response?.statusCode}");
-      print("response data => ${e.response?.data}");
+
+      final message = e.response?.data['message'];
+
+      /// 🔥 ADD THIS BLOCK HERE
+      if (message == "Symbol already in watchlist") {
+        return true; // treat as success
+      }
+
+      print("❌ Add error => ${e.response?.data}");
       return false;
     }
   }

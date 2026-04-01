@@ -1,26 +1,33 @@
 class SearchInstrumentModel {
   final int instrumentId;
   final String name;
-  final String exchange;
   final String symbol;
+  final String exchange;
 
-  bool isAdded;
+  bool subscription; // from API (or default)
+  bool isLoading;    // UI state
 
   SearchInstrumentModel({
     required this.instrumentId,
     required this.name,
-    required this.exchange,
     required this.symbol,
-    this.isAdded = false,
+    required this.exchange,
+    required this.subscription,
+    required this.isLoading,
   });
 
   factory SearchInstrumentModel.fromJson(Map<String, dynamic> json) {
     return SearchInstrumentModel(
       instrumentId: json['instrumentId'],
-      name: json['name'],
-      exchange: json['exchange'],
-      symbol: json['symbol'],
-      isAdded: false, // default
+      name: json['name'] ?? "",
+      symbol: json['symbol'] ?? "",
+      exchange: json['exchange'] ?? "",
+
+      // 🔥 VERY IMPORTANT
+      subscription: json['subscription'] ?? false,
+
+      // 🔥 UI only
+      isLoading: false,
     );
   }
 }

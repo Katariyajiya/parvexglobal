@@ -33,6 +33,9 @@ dependencies:
   google_fonts: ^6.2.1
   cupertino_icons: ^1.0.8
   dio: ^5.9.2
+  web_socket_channel: ^2.4.0
+  stomp_dart_client: ^0.4.4
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

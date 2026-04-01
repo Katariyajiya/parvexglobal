@@ -142,12 +142,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     //   ),
                     // ),
                     const SizedBox(height: 10),
-                    Text("Verify your Mobile Number", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black)),
+                    Text("Verify your Email ID", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black)),
 
                     const SizedBox(height: 40),
 
                     // --- Mobile Number Input Area ---
-                    const Text('MOBILE NUMBER', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    const Text('EMAIL ID', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -161,9 +161,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           child: Row(
                             children: const [
-                              Text('🇮🇳', style: TextStyle(fontSize: 16)), // Simple emoji for flag
-                              SizedBox(width: 8),
-                              Text('+91', style: TextStyle(fontWeight: FontWeight.bold)),
+                              // Text('🇮🇳', style: TextStyle(fontSize: 16)), // Simple emoji for flag
+                              // SizedBox(width: 8),
+                              // Text('+91', style: TextStyle(fontWeight: FontWeight.bold)),
+
+                              Icon(Icons.mail_outlined,color: Colors.grey,)
                             ],
                           ),
                         ),
@@ -174,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
-                              hintText: '98765 43210',
+                              hintText: 'ankushSharma@gmail.com',
                               hintStyle: TextStyle(color: Colors.grey.shade400),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
                               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),

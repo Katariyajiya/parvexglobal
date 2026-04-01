@@ -1,7 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:parvexglobal/extension/extension_functions.dart';
 import 'package:parvexglobal/helper/bottom_navigation_bar.dart';
+import 'package:stomp_dart_client/stomp.dart';
+import 'package:stomp_dart_client/stomp_config.dart';
+import 'package:stomp_dart_client/stomp_frame.dart';
 
+import '../services/websocket_service.dart';
 import 'add_instrument.dart';
 import 'instrument_detail.dart';
 import 'profile.dart'; // Ensure this matches your profile file name
@@ -14,9 +20,102 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final WebSocketService _wsService = WebSocketService();
+
   final _tabs = const ["All", "NFO", "MCX", "COMEX", "UAE"];
 
   int _selectedTab = 0;
+
+  StompClient? stompClient;
+  List<Map<String, dynamic>> ticks = [];
+
+
+
+  late final List<_WatchItem> _items = [
+    _WatchItem(
+      iconBg: const Color(0xFFE9FFF4),
+      icon: "🇦🇪",
+      title: "UAE Gold",
+      subtitle1: "UAE · Commodity · per gram",
+      subtitle2: "",
+      price: "AED 218",
+      change: "0.55%",
+      changeUp: true,
+      added: true,
+      currencyStyle: _CurrencyStyle.aed, symbol: 'MCX',
+    ),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    connectWebSocket();
+  }
+
+  void connectWebSocket() {
+    stompClient = StompClient(
+      config: StompConfig.SockJS(
+        url:
+        'http://marketwatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com/ws',
+        onConnect: onConnect,
+        // onError: (error) => print('Error: $error'),
+      ),
+    );
+
+    stompClient!.activate();
+  }
+
+  void onConnect(StompFrame frame) {
+    print("Connected");
+
+    stompClient!.subscribe(
+      destination: '/topic/ticks/all',
+      callback: (frame) {
+        if (frame.body != null) {
+          final tick = jsonDecode(frame.body!);
+
+          setState(() {
+            print(tick.toString());
+            ticks.insert(0, tick);
+          });
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    stompClient?.deactivate();
+    super.dispose();
+  }
+
+  void _handleLiveData(dynamic data) {
+    print("LIVE => $data");
+
+    /*
+   EXPECTED (example)
+   {
+     "symbol": "GOLD",
+     "price": 62840,
+     "change": -12
+   }
+  */
+
+    final symbol = data['symbol'];
+
+    final index = _items.indexWhere((e) => e.symbol == symbol);
+
+    if (index != -1) {
+      setState(() {
+        final price = data['price'];
+        final change = data['change'];
+
+        _items[index].price = "₹$price";
+        _items[index].change = "$change (${data['percent'] ?? ''}%)";
+        _items[index].changeUp = change >= 0;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,28 +232,25 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // Watchlist Card 1 (GOLD)
-            _buildWatchlistCard(
-              context,
-              title: 'GOLD',
-              tags: ['MCX', 'Commodity', 'Dec 2025'],
-              price: '₹62,840',
-              change: '₹204 (0.32%)',
-              isPositive: false,
-              accentColor: Colors.orange,
-              details: {'PREV CLOSE': '₹63,044', 'OPEN': '₹62,950', 'LOT SIZE': '100g', 'DAY HIGH': '₹63,120', 'DAY LOW': '₹62,610', 'LTP': '₹62,840'},
-            ),
-
-            // Watchlist Card 2 (NIFTY 50)
-            _buildWatchlistCard(
-              context,
-              title: 'NIFTY 50',
-              tags: ['NFO', 'Futures', '28 Nov 2025'],
-              price: '22,450',
-              change: '93 (0.42%)',
-              isPositive: true,
-              accentColor: Colors.blue,
-              details: {'PREV CLOSE': '22,357', 'OPEN': '22,380', 'LOT SIZE': '50', 'DAY HIGH': '22,510', 'DAY LOW': '22,290', 'LTP': '22,450'},
+            Column(
+              children: ticks.map((item) {
+                return _buildWatchlistCard(
+                  context,
+                  title: item["tradingSymbol"],
+                  tags: [],
+                  price: item["lastPrice"].toString(),
+                  change: "TEst",
+                  isPositive: true,
+                  accentColor: Colors.blue,
+                  details: {
+                    "PREV CLOSE": "-",
+                    "OPEN": "-",
+                    "H": "-",
+                    "L": "-",
+                    "LTP": "Test",
+                  },
+                );
+              }).toList(),
             ),
           ],
         ),
@@ -249,7 +345,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                      Text(title,
+                          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
                       const SizedBox(height: 2),
                     ],
                   ),
@@ -366,3 +463,32 @@ class _ChipTab extends StatelessWidget {
     );
   }
 }
+class _WatchItem {
+  _WatchItem({
+    required this.iconBg,
+    required this.icon,
+    required this.title,
+    required this.subtitle1,
+    required this.subtitle2,
+    required this.price,
+    required this.change,
+    required this.changeUp,
+    required this.added,
+    required this.currencyStyle,
+    required this.symbol
+  });
+
+  final Color iconBg;
+  final String icon;
+  final String title;
+  final String subtitle1;
+  final String subtitle2;
+  String price;
+  String change;
+  bool changeUp;
+  bool added;
+  final _CurrencyStyle currencyStyle;
+  final String symbol;
+}
+enum _CurrencyStyle { rupee, dollar, aed, plain }
+

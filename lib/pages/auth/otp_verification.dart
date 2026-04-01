@@ -227,7 +227,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                             child: RichText(
                               text: const TextSpan(
                                 text:
-                                    'Your OTP has been sent via SMS. It will expire in ',
+                                    'Your OTP has been sent via email. It will expire in ',
                                 style: TextStyle(
                                   color: Colors.black87,
                                   fontSize: 13,
@@ -235,7 +235,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                                 ),
                                 children: [
                                   TextSpan(
-                                    text: '3 minutes',
+                                    text: '5 minutes',
                                     style: TextStyle(
                                       color: Colors.blue,
                                       fontWeight: FontWeight.bold,

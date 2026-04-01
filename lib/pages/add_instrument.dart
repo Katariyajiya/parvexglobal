@@ -230,70 +230,75 @@ class _AddInstrumentState extends State<AddInstrument> {
                   return ListTile(
                     title: Text(item.name),
                     subtitle: Text("${item.exchange} • ${item.symbol}"),
-                    trailing: GestureDetector(
-                      onTap: () async {
-                        print("instrumentId => ${item.instrumentId}");
-                        print("isAdded => ${item.isAdded}");
-                        print("userId => ${UserSession.userId}");
+                    trailing: item.isLoading
+                        ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                        : IconButton(
+                      icon: Icon(
+                        item.subscription ? Icons.close : Icons.add,
+                        color: item.subscription ? Colors.red : Colors.green,
+                      ),
+                      onPressed: () async {
                         final api = RestApiService();
 
-                        // Show loader
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (_) => const Center(child: CircularProgressIndicator()),
-                        );
+                        setState(() {
+                          item.isLoading = true;
+                        });
 
-                        bool success = false;
+                        try {
+                          if (item.subscription) {
+                            /// REMOVE
+                            final success = await api.removeFromWatchlist(
+                              instrumentId: item.instrumentId,
+                            );
 
-                        if (!item.isAdded) {
-                          // ➕ ADD
-                          success = await api.addToWatchlist(
-                            instrumentId: item.instrumentId,
-                          );
-                        } else {
-                          // ❌ REMOVE
-                          success = await api.removeFromWatchlist(
-                            instrumentId: item.instrumentId,
-                          );
-                        }
+                            if (success) {
+                              item.subscription = false;
 
-                        Navigator.pop(context); // close loader
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Removed from Watchlist"),
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            }
+                          } else {
+                            /// ADD
+                            final success = await api.addToWatchlist(
+                              instrumentId: item.instrumentId,
+                            );
 
-                        if (success) {
-                          setState(() {
-                            item.isAdded = !item.isAdded; // 🔥 TOGGLE STATE
-                          });
+                            if (success) {
+                              item.subscription = true;
 
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                item.isAdded
-                                    ? "Added to Watchlist"
-                                    : "Removed from Watchlist",
-                              ),
-                            ),
-                          );
-                        } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Added to Watchlist"),
+                                  duration: Duration(seconds: 1),
+                                ),
+                              );
+                            } else {
+                              /// Handle duplicate case (your API bug)
+                              item.subscription = true;
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Already in Watchlist")),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          print(e);
+
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text("Something went wrong")),
                           );
+                        } finally {
+                          setState(() {
+                            item.isLoading = false;
+                          });
                         }
                       },
-
-                      child: Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          color: item.isAdded ? Colors.grey[200] : const Color(0xFF2FB344),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Icon(
-                          item.isAdded ? Icons.close : Icons.add,
-                          color: item.isAdded ? Colors.red : Colors.white,
-                          size: 20,
-                        ),
-                      ),
                     ),
                   );
                 },
@@ -406,7 +411,7 @@ class _IconPillButton extends StatelessWidget {
   }
 }
 
-enum _CurrencyStyle { rupee, dollar, aed, plain }
+
 
 class _WatchItem {
   _WatchItem({
@@ -577,3 +582,4 @@ class _CenterFab extends StatelessWidget {
     );
   }
 }
+enum _CurrencyStyle { rupee, dollar, aed, plain }
