@@ -176,7 +176,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             controller: phoneController,
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
-                              hintText: 'ankushSharma@gmail.com',
+                              hintText: '@gmail.com',
                               hintStyle: TextStyle(color: Colors.grey.shade400),
                               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
                               enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),

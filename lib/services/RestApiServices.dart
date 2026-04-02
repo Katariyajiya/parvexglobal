@@ -18,7 +18,7 @@ import 'package:dio/dio.dart';
 class RestApiService {
   static final Dio dio = Dio(
     BaseOptions(
-      baseUrl: "http://marketwatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com", // update if needed
+      baseUrl: "http://192.168.1.4:5001", // update if needed
       connectTimeout: const Duration(seconds: 60),
       receiveTimeout: const Duration(seconds: 60),
       headers: {
@@ -89,15 +89,16 @@ class RestApiService {
     required String exchange,
   }) async {
     try {
+      print("exchange "+ exchange);
       final response = await dio.get(
         "/api/v1/instruments/search",
         queryParameters: {
-          "exchange": exchange,
+          "exchange": exchange == 'All'? '' : exchange,
           "query": query,
         },
         options: Options(
           headers: {
-            "userId": UserSession.userId,
+            "userId": 2,
           },
         ),
       );
@@ -124,7 +125,7 @@ class RestApiService {
         },
         options: Options(
           headers: {
-            "userId": UserSession.userId,
+            "userId":2,
             "Content-Type": "application/json",
           },
         ),
@@ -155,7 +156,7 @@ class RestApiService {
         '/api/v1/watchlist/$instrumentId',
         options: Options(
           headers: {
-            "userId":UserSession.userId,
+            "userId": 2,
             "Content-Type": "application/json",
           },
         ),
@@ -168,3 +169,11 @@ class RestApiService {
     }
   }
 }
+
+/*
+* ticker subscribes only once per token
+unlimited users can watch same token
+memory usage is 10x lower
+ticks are O(1) broadcast
+*
+* */

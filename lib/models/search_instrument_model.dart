@@ -3,9 +3,8 @@ class SearchInstrumentModel {
   final String name;
   final String symbol;
   final String exchange;
-
-  bool subscription; // from API (or default)
-  bool isLoading;    // UI state
+  bool subscription;
+  bool isLoading;
 
   SearchInstrumentModel({
     required this.instrumentId,
@@ -22,11 +21,7 @@ class SearchInstrumentModel {
       name: json['name'] ?? "",
       symbol: json['symbol'] ?? "",
       exchange: json['exchange'] ?? "",
-
-      // 🔥 VERY IMPORTANT
       subscription: json['subscription'] ?? false,
-
-      // 🔥 UI only
       isLoading: false,
     );
   }

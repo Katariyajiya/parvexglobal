@@ -25,7 +25,6 @@ class _AddInstrumentState extends State<AddInstrument> {
   List<SearchInstrumentModel> searchResults = [];
   bool isLoading = false;
 
-
   Timer? _debounce;
 
   void onSearchChanged(String value) {
@@ -127,10 +126,7 @@ class _AddInstrumentState extends State<AddInstrument> {
     try {
       final api = RestApiService();
 
-      final results = await api.searchInstruments(
-        query: query,
-        exchange: _tabs[_selectedTab],
-      );
+      final results = await api.searchInstruments(query: query, exchange: _tabs[_selectedTab]);
 
       // ❗ IMPORTANT: Ignore old responses
       if (requestId != _requestId) return;
@@ -138,7 +134,6 @@ class _AddInstrumentState extends State<AddInstrument> {
       setState(() {
         searchResults = results;
       });
-
     } catch (e) {
       print(e);
     } finally {
@@ -180,10 +175,7 @@ class _AddInstrumentState extends State<AddInstrument> {
             Container(
               color: Colors.white,
               padding: const EdgeInsets.only(left: 16, right: 16, top: 0, bottom: 14),
-              child: _SearchField(
-                  hintText: "Search instrument, symbol...",
-                onChanged:onSearchChanged
-              ),
+              child: _SearchField(hintText: "Search instrument, symbol...", onChanged: onSearchChanged),
             ),
 
             // Tabs
@@ -198,7 +190,9 @@ class _AddInstrumentState extends State<AddInstrument> {
                   separatorBuilder: (_, __) => const SizedBox(width: 10),
                   itemBuilder: (context, i) {
                     final selected = i == _selectedTab;
-                    return _ChipTab(label: _tabs[i], selected: selected,
+                    return _ChipTab(
+                      label: _tabs[i],
+                      selected: selected,
                       onTap: () {
                         setState(() {
                           _selectedTab = i;
@@ -215,94 +209,73 @@ class _AddInstrumentState extends State<AddInstrument> {
 
             // List
             Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : searchResults.isEmpty
-                  ? const Center(child: Text("No results found"))
-                  : ListView.separated(
-                itemCount: searchResults.length,
-                separatorBuilder: (_, __) => const Divider(),
-                itemBuilder: (context, i) {
-                  final item = searchResults[i];
+              child:
+                  isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : searchResults.isEmpty
+                      ? const Center(child: Text("No results found"))
+                      : ListView.separated(
+                        itemCount: searchResults.length,
+                        separatorBuilder: (_, __) => const Divider(),
+                        itemBuilder: (context, i) {
+                          final item = searchResults[i];
 
-                  print(searchResults[i]);
+                          print(searchResults[i]);
 
-                  return ListTile(
-                    title: Text(item.name),
-                    subtitle: Text("${item.exchange} • ${item.symbol}"),
-                    trailing: item.isLoading
-                        ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                        : IconButton(
-                      icon: Icon(
-                        item.subscription ? Icons.close : Icons.add,
-                        color: item.subscription ? Colors.red : Colors.green,
-                      ),
-                      onPressed: () async {
-                        final api = RestApiService();
+                          return ListTile(
+                            title: Text(item.name),
+                            subtitle: Text("${item.exchange} • ${item.symbol}"),
+                            trailing:
+                                item.isLoading
+                                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                    : IconButton(
+                                      icon: Icon(item.subscription ? Icons.close : Icons.add, color: item.subscription ? Colors.red : Colors.green),
+                                      onPressed: () async {
+                                        final api = RestApiService();
 
-                        setState(() {
-                          item.isLoading = true;
-                        });
+                                        setState(() {
+                                          item.isLoading = true;
+                                        });
 
-                        try {
-                          if (item.subscription) {
-                            /// REMOVE
-                            final success = await api.removeFromWatchlist(
-                              instrumentId: item.instrumentId,
-                            );
+                                        try {
+                                          if (item.subscription) {
+                                            /// REMOVE
+                                            final success = await api.removeFromWatchlist(instrumentId: item.instrumentId);
 
-                            if (success) {
-                              item.subscription = false;
+                                            if (success) {
+                                              item.subscription = false;
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Removed from Watchlist"),
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                            }
-                          } else {
-                            /// ADD
-                            final success = await api.addToWatchlist(
-                              instrumentId: item.instrumentId,
-                            );
+                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Removed from Watchlist"), duration: Duration(seconds: 1)));
+                                            }
+                                          } else {
+                                            /// ADD
+                                            final success = await api.addToWatchlist(instrumentId: item.instrumentId);
 
-                            if (success) {
-                              item.subscription = true;
+                                            if (success) {
+                                              item.subscription = true;
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Added to Watchlist"),
-                                  duration: Duration(seconds: 1),
-                                ),
-                              );
-                            } else {
-                              /// Handle duplicate case (your API bug)
-                              item.subscription = true;
+                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Added to Watchlist"), duration: Duration(seconds: 1)));
+                                            } else {
+                                              /// Handle duplicate case (your API bug)
+                                              item.subscription = true;
 
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text("Already in Watchlist")),
-                              );
-                            }
-                          }
-                        } catch (e) {
-                          print(e);
+                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Already in Watchlist")));
+                                            }
+                                          }
+                                        } catch (e) {
+                                          print(e);
 
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("Something went wrong")),
+                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Something went wrong")));
+                                        } finally {
+                                          setState(() {
+                                            item.isLoading = false;
+                                          });
+                                        }
+                                      },
+                                    ),
                           );
-                        } finally {
-                          setState(() {
-                            item.isLoading = false;
-                          });
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
+                        },
+                      ),
             ),
           ],
         ),
@@ -410,8 +383,6 @@ class _IconPillButton extends StatelessWidget {
     );
   }
 }
-
-
 
 class _WatchItem {
   _WatchItem({
@@ -582,4 +553,5 @@ class _CenterFab extends StatelessWidget {
     );
   }
 }
+
 enum _CurrencyStyle { rupee, dollar, aed, plain }
