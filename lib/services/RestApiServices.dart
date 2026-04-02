@@ -98,7 +98,7 @@ class RestApiService {
         },
         options: Options(
           headers: {
-            "userId": 3,
+            "userId": UserSession.userId,
           },
         ),
       );
@@ -126,7 +126,7 @@ class RestApiService {
         },
         options: Options(
           headers: {
-            "userId":3,
+            "userId":UserSession.userId,
             "Content-Type": "application/json",
           },
         ),
@@ -157,7 +157,7 @@ class RestApiService {
         '/api/v1/watchlist/$instrumentId',
         options: Options(
           headers: {
-            "userId": 3,
+            "userId": UserSession.userId,
             "Content-Type": "application/json",
           },
         ),

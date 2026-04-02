@@ -22,6 +22,7 @@ class _AddInstrumentState extends State<AddInstrument> {
 
   final TextEditingController searchController = TextEditingController();
 
+  List<SearchInstrumentModel> fullList = [];
   List<SearchInstrumentModel> searchResults = [];
   bool isLoading = false;
 
@@ -147,6 +148,39 @@ class _AddInstrumentState extends State<AddInstrument> {
     }
   }
 
+
+  Future<void> loadInstrumentsByTab() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final api = RestApiService();
+
+      final results = await api.searchInstruments(
+        query: "",
+        exchange: _tabs[_selectedTab],
+      );
+
+      setState(() {
+        fullList = results;
+        searchResults = results;
+      });
+    } catch (e) {
+      print(e);
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    loadInstrumentsByTab();
+  }
+
   @override
   Widget build(BuildContext context) {
     const bg = Color(0xFFF8F8F8);
@@ -197,10 +231,12 @@ class _AddInstrumentState extends State<AddInstrument> {
                       onTap: () {
                         setState(() {
                           _selectedTab = i;
-                          searchResults.clear();
+                          _lastQuery = "";
+                          searchController.clear();
                         });
 
                         _requestId++;
+                        loadInstrumentsByTab();
                       },
                     );
                   },
@@ -247,7 +283,7 @@ class _AddInstrumentState extends State<AddInstrument> {
                                               item.subscription = false;
 
                                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Removed from Watchlist"), duration: Duration(seconds: 1)));
-                                              await searchInstrument(_lastQuery);
+                                               searchInstrument(_lastQuery);
                                             }
                                           } else {
                                             /// ADD

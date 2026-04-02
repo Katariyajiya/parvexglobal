@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:parvexglobal/extension/extension_functions.dart';
+import 'package:parvexglobal/utils/user_session.dart';
 import 'package:stomp_dart_client/stomp.dart';
 import 'package:stomp_dart_client/stomp_config.dart';
 import 'package:stomp_dart_client/stomp_frame.dart';
@@ -14,7 +15,7 @@ import 'profile.dart';
 // ── Config ────────────────────────────────────────────────────────────────────
 const String _wsUrl   = 'http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com/ws';
 const String _baseUrl = 'http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com';
-const String _userId  = '3';
+int? _userId  = UserSession.userId ;
 
 class TickData {
   final int instrumentToken;
