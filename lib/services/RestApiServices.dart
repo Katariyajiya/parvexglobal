@@ -18,7 +18,7 @@ import 'package:dio/dio.dart';
 class RestApiService {
   static final Dio dio = Dio(
     BaseOptions(
-      baseUrl: "http://192.168.1.4:5001", // update if needed
+      baseUrl: "http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com", // update if needed
       connectTimeout: const Duration(seconds: 60),
       receiveTimeout: const Duration(seconds: 60),
       headers: {

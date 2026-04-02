@@ -12,8 +12,8 @@ import 'instrument_detail.dart';
 import 'profile.dart';
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const String _wsUrl   = 'http://192.168.1.4:5001/ws';
-const String _baseUrl = 'http://192.168.1.4:5001';
+const String _wsUrl   = 'http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com/ws';
+const String _baseUrl = 'http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com';
 const String _userId  = '2';
 
 class TickData {

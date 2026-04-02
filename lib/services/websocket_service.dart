@@ -7,7 +7,7 @@ class WebSocketService {
   Function(dynamic data)? onMessage;
 
   void connect() {
-    _channel = WebSocketChannel.connect(Uri.parse("ws://192.168.1.4:5001/ws"));
+    _channel = WebSocketChannel.connect(Uri.parse("ws://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com/ws"));
 
     _channel.stream.listen(
           (message) {
