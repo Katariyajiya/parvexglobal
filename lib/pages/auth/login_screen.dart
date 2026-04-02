@@ -174,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         Expanded(
                           child: TextField(
                             controller: phoneController,
-                            keyboardType: TextInputType.phone,
+                            keyboardType: TextInputType.text,
                             decoration: InputDecoration(
                               hintText: '@gmail.com',
                               hintStyle: TextStyle(color: Colors.grey.shade400),

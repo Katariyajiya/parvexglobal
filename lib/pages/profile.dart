@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:parvexglobal/helper/bottom_navigation_bar.dart';
 
+import '../services/auth_service.dart';
+import 'auth/login_screen.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -21,7 +24,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             // 1. Blue Profile Header
             _buildProfileHeader(),
-
             Padding(
               padding: const EdgeInsets.all(20.0),
               child: Column(
@@ -52,6 +54,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 40), // Space for Bottom Nav
                 ],
               ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await AuthService.logout();
+
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => LoginScreen()),
+                      (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,   // Button color
+               // foregroundColor: Colors.white,  // Text color
+                padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12), // Rounded corners
+                ),
+                elevation: 5, // Shadow depth
+              ),
+              child: Text("Logout",style: TextStyle(color: Colors.red),),
             ),
           ],
         ),
@@ -141,7 +164,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
+
   }
+
 
   Widget _buildEditButton() {
     return Container(

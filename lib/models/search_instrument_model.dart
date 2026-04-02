@@ -21,7 +21,7 @@ class SearchInstrumentModel {
       name: json['name'] ?? "",
       symbol: json['symbol'] ?? "",
       exchange: json['exchange'] ?? "",
-      subscription: json['subscription'] ?? false,
+      subscription: json['subscribed'] ?? false,
       isLoading: false,
     );
   }

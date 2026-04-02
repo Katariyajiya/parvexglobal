@@ -14,7 +14,7 @@ import 'profile.dart';
 // ── Config ────────────────────────────────────────────────────────────────────
 const String _wsUrl   = 'http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com/ws';
 const String _baseUrl = 'http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com';
-const String _userId  = '2';
+const String _userId  = '3';
 
 class TickData {
   final int instrumentToken;
@@ -251,10 +251,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         _buildAppBarAction(
           Icons.search,
-              () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AddInstrument()),
-          ),
+              () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddInstrument()),
+            );
+
+            _loadSnapshot();
+          },
         ),
         Padding(
           padding: const EdgeInsets.only(right: 16, left: 8),
@@ -286,10 +290,14 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           TextButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AddInstrument()),
-            ),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AddInstrument()),
+              );
+
+              _loadSnapshot(); // 🔥 refresh here also
+            },
             child: const Text(
               '+ Add',
               style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),

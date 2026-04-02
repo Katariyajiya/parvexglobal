@@ -5,6 +5,7 @@ import 'package:parvexglobal/pages/home_screen.dart';
 
 import '../../models/verify_otp_request.dart';
 import '../../services/RestApiServices.dart';
+import '../../services/auth_service.dart';
 import '../../utils/user_session.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
@@ -62,6 +63,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       );
 
       print("RAW RESPONSE => ${response.data}");
+
+      await AuthService.saveUser(
+        response.token,
+        response.userId.toString(),
+      );
 
       UserSession.userId = response.userId;
       UserSession.token = response.token;

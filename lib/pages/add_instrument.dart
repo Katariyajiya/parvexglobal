@@ -28,6 +28,7 @@ class _AddInstrumentState extends State<AddInstrument> {
   Timer? _debounce;
 
   void onSearchChanged(String value) {
+    _lastQuery = value;
     if (_debounce?.isActive ?? false) _debounce!.cancel();
 
     _debounce = Timer(const Duration(milliseconds: 500), () {
@@ -115,7 +116,7 @@ class _AddInstrumentState extends State<AddInstrument> {
   final int _bottomIndex = 0;
 
   Future<void> searchInstrument(String query) async {
-    if (query.isEmpty) return;
+    if (query.isEmpty  && _lastQuery.isEmpty) return;
 
     final int requestId = ++_requestId; // 🔥 ADD THIS
 
@@ -246,9 +247,12 @@ class _AddInstrumentState extends State<AddInstrument> {
                                               item.subscription = false;
 
                                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Removed from Watchlist"), duration: Duration(seconds: 1)));
+                                              await searchInstrument(_lastQuery);
                                             }
                                           } else {
                                             /// ADD
+                                            print(item.instrumentId);
+                                            print("addition requested");
                                             final success = await api.addToWatchlist(instrumentId: item.instrumentId);
 
                                             if (success) {

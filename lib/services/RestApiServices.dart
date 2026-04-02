@@ -98,7 +98,7 @@ class RestApiService {
         },
         options: Options(
           headers: {
-            "userId": 2,
+            "userId": 3,
           },
         ),
       );
@@ -117,6 +117,7 @@ class RestApiService {
   Future<bool> addToWatchlist({
     required int instrumentId,
   }) async {
+    print("Request reached to api");
     try {
       final response = await dio.post(
         '/api/v1/watchlist',
@@ -125,7 +126,7 @@ class RestApiService {
         },
         options: Options(
           headers: {
-            "userId":2,
+            "userId":3,
             "Content-Type": "application/json",
           },
         ),
@@ -156,7 +157,7 @@ class RestApiService {
         '/api/v1/watchlist/$instrumentId',
         options: Options(
           headers: {
-            "userId": 2,
+            "userId": 3,
             "Content-Type": "application/json",
           },
         ),
