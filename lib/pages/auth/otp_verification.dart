@@ -77,7 +77,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         SnackBar(content: Text(response.message)),
       );
 
-      // TODO: store token (next step)
+      await UserSession.saveSession(
+        token: response.token,
+        userId: response.userId,
+      );
+
 
       Navigator.pushAndRemoveUntil(
         context,

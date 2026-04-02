@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:parvexglobal/helper/bottom_navigation_bar.dart';
 
 import '../services/auth_service.dart';
+import '../utils/user_session.dart';
 import 'auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -57,7 +58,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                await AuthService.logout();
+                await UserSession.clearSession();
 
                 Navigator.pushAndRemoveUntil(
                   context,
