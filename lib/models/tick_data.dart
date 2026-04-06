@@ -1,6 +1,6 @@
 class TickData {
   final int id;
-  final int instrumentToken;
+    int instrumentToken;
   final String tradingSymbol;
   final String exchange;
   final double lastPrice;

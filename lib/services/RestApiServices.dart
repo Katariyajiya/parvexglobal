@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
+import '../models/AppUpdate.dart';
 import '../models/OtpResponseModel.dart';
 import '../models/otp_request_model.dart';
 import '../models/search_instrument_model.dart';
@@ -19,7 +22,7 @@ import 'package:dio/dio.dart';
 class RestApiService {
   static final Dio dio = Dio(
       BaseOptions(
-        baseUrl: "http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com", // update if needed
+        baseUrl: "http://13.127.145.152:5001", // update if needed
         connectTimeout: const Duration(seconds: 60),
         receiveTimeout: const Duration(seconds: 60),
         headers: {"Content-Type": "application/json"},
@@ -130,7 +133,29 @@ class RestApiService {
   Future<List> loadSnapshot() async {
     try {
       final response = await dio.get(
-        '/api/v1/watchlist/${UserSession.userId}/snapshot',
+        '/api/v1/watchlist',
+        options: Options(headers: {"userId": UserSession.userId, "Content-Type": "application/json"}),
+      );
+
+      if (response.statusCode == 200) {
+        final List data = response.data;
+        if (data.isEmpty) {
+          return await defaultWishList();
+        } else {
+          return data;
+        }
+      }
+    } catch (e) {
+      debugPrint('Snapshot failed: $e');
+      return [];
+    }
+    return [];
+  }
+
+  Future<List> defaultWishList() async {
+    try {
+      final response = await dio.get(
+        '/api/v1/watchlist/default',
         options: Options(headers: {"userId": UserSession.userId, "Content-Type": "application/json"}),
       );
 
@@ -143,6 +168,29 @@ class RestApiService {
       return [];
     }
     return [];
+  }
+
+  Future<AppUpdate?> fetchLatestAppUpdate({required String platform}) async {
+    final res = await dio.get('/api/app-updates/latest?platform=$platform');
+    if (res.statusCode == 200) {
+      return AppUpdate.fromJson(res.data);
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>> getUser() async {
+    final res = await dio.get('/api/users/${UserSession.userId}');
+    return res.data;
+  }
+
+  Future<bool> updateUser(int userId, Map<String, dynamic> data) async {
+    final res = await dio.put(
+      '/api/users/${UserSession.userId}',
+      data: data,
+      options: Options(headers: {"Content-Type": "application/json"}),
+    );
+
+    return res.statusCode == 200;
   }
 }
 

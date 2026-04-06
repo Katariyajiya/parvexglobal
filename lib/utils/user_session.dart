@@ -1,4 +1,4 @@
 class UserSession {
-  static int? userId = 1;
+  static String? userId;
   static String? token;
 }

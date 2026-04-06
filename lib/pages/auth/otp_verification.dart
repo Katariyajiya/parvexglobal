@@ -69,7 +69,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         response.userId.toString(),
       );
 
-      UserSession.userId = response.userId;
+      UserSession.userId = response.userId.toString();
       UserSession.token = response.token;
 
 
@@ -348,7 +348,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           style: TextStyle(color: Colors.grey, fontSize: 13),
                           children: [
                             TextSpan(
-                              text: 'Change Mobile',
+                              text: 'Change Email',
                               style: TextStyle(
                                 color: Colors.blue,
                                 fontWeight: FontWeight.bold,

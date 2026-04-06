@@ -36,6 +36,7 @@ dependencies:
   web_socket_channel: ^2.4.0
   stomp_dart_client: ^0.4.4
   shared_preferences: ^2.2.2
+#  package_info_plus: any
 
 dev_dependencies:
   flutter_test:

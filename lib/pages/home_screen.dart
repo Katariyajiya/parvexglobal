@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:ffi';
 
 import 'package:flutter/material.dart';
+// import 'package:package_info_plus/package_info_plus.dart';
 import 'package:parvexglobal/extension/extension_functions.dart';
 import 'package:parvexglobal/models/tick_data.dart';
 import 'package:parvexglobal/services/RestApiServices.dart';
@@ -11,14 +11,18 @@ import 'package:stomp_dart_client/stomp.dart';
 import 'package:stomp_dart_client/stomp_config.dart';
 import 'package:stomp_dart_client/stomp_frame.dart';
 import 'package:http/http.dart' as http;
+// import 'package:url_launcher/url_launcher.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'UserProfileScreen.dart';
 import 'add_instrument.dart';
 import 'instrument_detail.dart';
 import 'profile.dart';
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const String _wsUrl = 'http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com/ws';
-const String _baseUrl = 'http://MarketWatch-env.eba-i9huczsw.eu-north-1.elasticbeanstalk.com';
+const String _wsUrl = 'http://13.127.145.152:5001/ws';
+const String _baseUrl = 'http://13.127.145.152:5001';
+const String _intlWsUrl = 'ws://13.127.145.152:8000/ws/ticks';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,31 +32,65 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _tabs = const ["All", "NFO", "MCX", "COMEX", "UAE"];
+  final _tabs = const ["All", "Equity", "Futures", "Options", "International"];
+
   int _selectedTab = 0;
   bool _connected = false;
   late String _userId;
-
+  WebSocketChannel? _intlCh;
   StompClient? _stomp;
 
   // latest tick by token
   final Map<int, TickData> _tickMap = {};
 
-  // permanent UI order taken from snapshot
-  final List<int> _snapshotOrder = [];
   final api = RestApiService();
 
   @override
   void initState() {
     super.initState();
 
-    _userId=UserSession.userId.toString();
+    _userId = UserSession.userId.toString();
 
     WidgetsBinding.instance.addPostFrameCallback((duration) {
+      _tickMap.clear();
+      _checkForUpdate();
       loadInitialData();
       _connectStomp();
+      _connectIntl();
     });
+  }
 
+  // 2. ── Helper to classify each tick ─────────────────────────
+  String _categoryOf(TickData t) {
+    // a. International: any non-Indian exchange you stream separately
+    final ex = (t.exchange ?? '').toUpperCase();
+    if (ex == 'COMEX' || ex == 'UAE' || ex == 'FOREX') return 'International';
+
+    // b. Prefer an explicit type field if your DTO has it
+    final type = (t.tradingSymbol ?? '').toUpperCase();
+    if (type.contains('FUT')) return 'Futures';
+    if (type.contains('OPT')) return 'Options';
+
+    final forex = (t.exchange ??'').toUpperCase();
+    if (forex.contains('FOREX') || forex.contains('COMEX') || forex.contains('METALS')) return 'International';
+
+    // c. Fallback heuristics based on symbol suffix
+    if (t.tradingSymbol.endsWith('CE') || t.tradingSymbol.endsWith('PE')) {
+      return 'Options';
+    }
+
+    if (t.tradingSymbol.contains('FUT')) return 'Futures';
+
+    // d. Default
+    return 'Equity';
+  }
+
+
+// 3. ── Visible-tick selector + hook-up ─────────────────────
+  List<TickData> _getVisibleTicks() {
+    if (_selectedTab == 0) return _tickMap.values.toList();          // “All”
+    final filter = _tabs[_selectedTab];
+    return _tickMap.values.where((t) => _categoryOf(t) == filter).toList();
   }
 
   @override
@@ -62,16 +100,140 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
+
+  void _checkForUpdate() async {
+    final update = await api.fetchLatestAppUpdate(platform: 'ANDROID');
+    if (update == null) return;
+
+    // final info = await PackageInfo.fromPlatform();
+    if (!_isServerVersionNewer(update.version, "2.5.1")) return;
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,          // 🔒 cannot tap outside or press back
+      builder: (_) => WillPopScope(       // ⬅️ also blocks Android back button
+        onWillPop: () async => false,
+        child: AlertDialog(
+          title: const Text('Update Available'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Version ${update.version} is available.'),
+              if (update.releaseNotes.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Text(update.releaseNotes),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => _launchDownload(update.downloadUrl),
+              child: const Text('UPDATE NOW'),
+            ),
+            if (!update.mandatory)
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('LATER'),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  bool _isServerVersionNewer(String server, String local) {
+    final s = server.split('.').map(int.parse).toList();
+    final l = local.split('.').map(int.parse).toList();
+    for (var i = 0; i < s.length || i < l.length; i++) {
+      final sv = i < s.length ? s[i] : 0;
+      final lv = i < l.length ? l[i] : 0;
+      if (sv > lv) return true;
+      if (sv < lv) return false;
+    }
+    return false;
+  }
+
+  void _launchDownload(String url) async {
+    final uri = Uri.parse(url);
+    // if (await canLaunchUrl(uri)) {
+    //   await launchUrl(uri, mode: LaunchMode.externalApplication);
+    // }
+  }
+
+  void _connectIntl() {
+    _intlCh = WebSocketChannel.connect(Uri.parse(_intlWsUrl));
+    _intlCh!.stream
+        .listen(
+          (raw) {
+            if (raw is String && raw != "ping" && raw != "pong") {
+              final m = jsonDecode(raw) as Map<String, dynamic>;
+              final tick = TickData.fromJson(m);
+              if (tick.tradingSymbol.isNotEmpty) {
+                tick.instrumentToken = mapAlphabetsToInt(tick.tradingSymbol);
+                if (!mounted) return;
+                setState(() {
+                  _tickMap[tick.instrumentToken] = tick;
+                });
+              }
+            }
+          },
+          onError: (e) => debugPrint('Intl WS error: $e'),
+          onDone: () => debugPrint('Intl WS closed – reconnecting in 5 s'),
+        )
+        .onDone(() => Future.delayed(const Duration(seconds: 5), _connectIntl));
+
+    // subscribeSymbols();
+  }
+
+  void subscribeSymbols() {
+    if (_intlCh == null) {
+      addLog("Connect socket first");
+      return;
+    }
+
+    final payload = {
+      "action": "subscribe",
+      "symbols": ["EURUSD", "XAUUSD", "GBPUSD"],
+    };
+
+    final jsonMsg = jsonEncode(payload);
+
+    _intlCh!.sink.add(jsonMsg);
+
+    addLog("Sent: $jsonMsg");
+  }
+
+  void disconnectSocket() {
+    _intlCh?.sink.close();
+    _intlCh = null;
+
+    setState(() {
+      _connected = false;
+    });
+
+    addLog("Socket closed");
+  }
+
+  List<String> logs = [];
+
+  void addLog(String msg) {
+    final time = TimeOfDay.now().format(context);
+    setState(() {
+      logs.insert(0, "[$time] $msg");
+    });
+  }
+
   void loadInitialData() async {
     var data = await api.loadSnapshot();
     setState(() {
-      _tickMap.clear();
-      _snapshotOrder.clear();
-
       for (final item in data) {
-        final tick = TickData.fromJson(item as Map<String, dynamic>);
-        _tickMap[tick.instrumentToken] = tick;
-        _snapshotOrder.add(tick.instrumentToken);
+        if (item != null) {
+          final tick = TickData.fromJson(item as Map<String, dynamic>);
+          _tickMap[tick.instrumentToken] = tick;
+        }
       }
     });
   }
@@ -108,9 +270,9 @@ class _HomeScreenState extends State<HomeScreen> {
             _tickMap[tick.instrumentToken] = tick;
 
             // keep snapshot order stable; only append if truly new
-            if (!_snapshotOrder.contains(tick.instrumentToken)) {
-              _snapshotOrder.add(tick.instrumentToken);
-            }
+            // if (!_snapshotOrder.contains(tick.instrumentToken)) {
+            //   _snapshotOrder.add(tick.instrumentToken);
+            // }
           }
         });
       },
@@ -122,19 +284,6 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _connected = false);
   }
 
-  List<TickData> _getVisibleTicks() {
-    final selectedTab = _tabs[_selectedTab].toUpperCase();
-
-    final orderedTicks = _snapshotOrder.map((token) => _tickMap[token]).whereType<TickData>().toList();
-
-    if (selectedTab == 'ALL') {
-      return orderedTicks;
-    }
-
-    return orderedTicks.where((tick) {
-      return tick.exchange.toUpperCase() == selectedTab;
-    }).toList();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _buildAppBarAction(Icons.search, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddInstrument()))),
         Padding(
           padding: const EdgeInsets.only(right: 16, left: 8),
-          child: const CircleAvatar(backgroundColor: Color(0xFF2979FF), child: Text('AS', style: TextStyle(color: Colors.white, fontSize: 14))),
+          child: const CircleAvatar(backgroundColor: Color(0xFF2979FF), child: Icon(Icons.person, color: Colors.white, size: 20)),
         ).onClick(() => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()))),
       ],
     );
@@ -211,7 +360,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Expanded(child: Center(child: CircularProgressIndicator()));
     }
 
-    final visibleTicks = _getVisibleTicks();
+    // final visibleTicks = _getVisibleTicks();
+    // final visibleTicks = _tickMap.values.toList();
+    final visibleTicks =_getVisibleTicks();
 
     if (visibleTicks.isEmpty) {
       return const Expanded(child: Center(child: Text('No instruments found for this filter', style: TextStyle(color: Colors.grey))));
@@ -238,7 +389,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
               setState(() {
                 _tickMap.remove(removedTick.instrumentToken);
-                _snapshotOrder.remove(removedTick.instrumentToken);
               });
 
               final success = await api.removeFromWatchlist(instrumentId: removedTick.id);
@@ -246,7 +396,6 @@ class _HomeScreenState extends State<HomeScreen> {
               if (!success) {
                 setState(() {
                   _tickMap[removedTick.instrumentToken] = removedTick;
-                  _snapshotOrder.add(removedTick.instrumentToken);
                 });
 
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to remove item")));
@@ -348,4 +497,19 @@ class _ChipTab extends StatelessWidget {
       ),
     );
   }
+}
+
+int mapAlphabetsToInt(String input) {
+  final buffer = StringBuffer();
+
+  for (int i = 0; i < input.length; i++) {
+    final c = input[i].toUpperCase();
+
+    if (c.codeUnitAt(0) >= 65 && c.codeUnitAt(0) <= 90) {
+      int value = c.codeUnitAt(0) - 65 + 1;
+      buffer.write(value);
+    }
+  }
+
+  return int.parse(buffer.toString());
 }
