@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+
 // import 'package:package_info_plus/package_info_plus.dart';
 import 'package:parvexglobal/extension/extension_functions.dart';
 import 'package:parvexglobal/models/tick_data.dart';
@@ -11,6 +12,7 @@ import 'package:stomp_dart_client/stomp.dart';
 import 'package:stomp_dart_client/stomp_config.dart';
 import 'package:stomp_dart_client/stomp_frame.dart';
 import 'package:http/http.dart' as http;
+
 // import 'package:url_launcher/url_launcher.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -71,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (type.contains('FUT')) return 'Futures';
     if (type.contains('OPT')) return 'Options';
 
-    final forex = (t.exchange ??'').toUpperCase();
+    final forex = (t.exchange ?? '').toUpperCase();
     if (forex.contains('FOREX') || forex.contains('COMEX') || forex.contains('METALS')) return 'International';
 
     // c. Fallback heuristics based on symbol suffix
@@ -85,10 +87,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Equity';
   }
 
-
-// 3. ── Visible-tick selector + hook-up ─────────────────────
+  // 3. ── Visible-tick selector + hook-up ─────────────────────
   List<TickData> _getVisibleTicks() {
-    if (_selectedTab == 0) return _tickMap.values.toList();          // “All”
+    if (_selectedTab == 0) return _tickMap.values.toList(); // “All”
     final filter = _tabs[_selectedTab];
     return _tickMap.values.where((t) => _categoryOf(t) == filter).toList();
   }
@@ -100,7 +101,6 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-
   void _checkForUpdate() async {
     final update = await api.fetchLatestAppUpdate(platform: 'ANDROID');
     if (update == null) return;
@@ -111,36 +111,38 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     showDialog(
       context: context,
-      barrierDismissible: false,          // 🔒 cannot tap outside or press back
-      builder: (_) => WillPopScope(       // ⬅️ also blocks Android back button
-        onWillPop: () async => false,
-        child: AlertDialog(
-          title: const Text('Update Available'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Version ${update.version} is available.'),
-              if (update.releaseNotes.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(update.releaseNotes),
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => _launchDownload(update.downloadUrl),
-              child: const Text('UPDATE NOW'),
-            ),
-            if (!update.mandatory)
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('LATER'),
+      barrierDismissible: false, // 🔒 cannot tap outside or press back
+      builder:
+          (_) => WillPopScope(
+            // ⬅️ also blocks Android back button
+            onWillPop: () async => false,
+            child: AlertDialog(
+              title: const Text('Update Available'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Version ${update.version} is available.'),
+                  if (update.releaseNotes.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(update.releaseNotes),
+                    ),
+                ],
               ),
-          ],
-        ),
-      ),
+              actions: [
+                TextButton(
+                  onPressed: () => _launchDownload(update.downloadUrl),
+                  child: const Text('UPDATE NOW'),
+                ),
+                if (!update.mandatory)
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('LATER'),
+                  ),
+              ],
+            ),
+          ),
     );
   }
 
@@ -279,15 +281,109 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  bool _editing = false; // ← NEW
+
   void _onDisconnect(StompFrame frame) {
     debugPrint('WebSocket disconnected');
     setState(() => _connected = false);
   }
 
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(backgroundColor: const Color(0xFFF6F6F6), appBar: _buildAppBar(), body: Column(children: [_buildWatchlistHeader(), _buildTabBar(), _buildTickList()]));
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F6F6),
+      appBar: _buildAppBar(),
+      body: Column(
+        children: [
+          _buildWatchlistHeader(),
+          _buildTabBar(),
+          _buildTickList(),
+        ],
+      ),
+    );
+  }
+
+  double _editSlide = 56; // width of the minus button
+
+  Widget _buildWatchlistCard(BuildContext context, {required TickData tick}) {
+    final color = tick.isUp ? Colors.green.shade700 : Colors.red.shade700;
+    final arrow = tick.isUp ? '▲' : '▼';
+
+    return Stack(
+      children: [
+        // ── CARD THAT SLIDES LEFT ─────────────────────────────
+        AnimatedSlide(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          offset: _editing ? const Offset(1, 0) * (_editSlide / MediaQuery.of(context).size.width) : Offset.zero,
+          child: GestureDetector(
+            onTap: () {
+              if (_editing) return; // disable navigation while editing
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const InstrumentDetailScreen()));
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+              margin: const EdgeInsets.only(bottom: 2),
+              color: Colors.white,
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [const SizedBox(), _buildDetailItem('LTP : ', '₹${tick.lastPrice.toStringAsFixed(2)}', isHighlight: true)],
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(child: Text(tick.tradingSymbol, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900))),
+                      Text('₹${tick.lastPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                      const SizedBox(width: 8),
+                      Text(
+                        '$arrow ${tick.change.toStringAsFixed(2)} (${tick.changePercent.toStringAsFixed(2)}%)',
+                        style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildDetailItem('PREV CLOSE : ', '₹${tick.close.toStringAsFixed(2)}'),
+                      _buildDetailItem('OPEN : ', '₹${tick.open.toStringAsFixed(2)}'),
+                      _buildDetailItem('H : ', '₹${tick.high.toStringAsFixed(2)}'),
+                      _buildDetailItem('L : ', '₹${tick.low.toStringAsFixed(2)}', isHighlight: true),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // inside _buildWatchlistCard → Positioned widget
+        if (_editing)
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Center(
+              child:
+                  _deletingIds.contains(tick.instrumentToken)
+                      ? Container(
+                        width: 22,
+                        height: 22,
+                        margin: EdgeInsets.only(left: 16.0),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : IconButton(
+                        splashRadius: 24,
+                        icon: const Icon(Icons.remove_circle, color: Colors.red, size: 28),
+                        onPressed: () => _removeInstrument(tick),
+                      ),
+            ),
+          ),
+      ],
+    );
   }
 
   PreferredSizeWidget _buildAppBar() {
@@ -323,14 +419,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildWatchlistHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 0, 0, 0),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text('My WatchList', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          Spacer(),
           TextButton(
             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddInstrument())),
             child: const Text('+ Add', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+          ),
+
+          TextButton(
+            onPressed: () => setState(() => _editing = !_editing),
+            child: Text(_editing ? 'Done' : 'Edit', style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -362,7 +463,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // final visibleTicks = _getVisibleTicks();
     // final visibleTicks = _tickMap.values.toList();
-    final visibleTicks =_getVisibleTicks();
+    final visibleTicks = _getVisibleTicks();
 
     if (visibleTicks.isEmpty) {
       return const Expanded(child: Center(child: Text('No instruments found for this filter', style: TextStyle(color: Colors.grey))));
@@ -373,83 +474,8 @@ class _HomeScreenState extends State<HomeScreen> {
         itemCount: visibleTicks.length,
         itemBuilder: (context, index) {
           final tick = visibleTicks[index];
-          return Dismissible(
-            key: Key(tick.instrumentToken.toString()),
-            direction: DismissDirection.endToStart,
-
-            background: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              color: Colors.red,
-              child: const Icon(Icons.delete, color: Colors.white),
-            ),
-
-            onDismissed: (direction) async {
-              final removedTick = tick;
-
-              setState(() {
-                _tickMap.remove(removedTick.instrumentToken);
-              });
-
-              final success = await api.removeFromWatchlist(instrumentId: removedTick.id);
-
-              if (!success) {
-                setState(() {
-                  _tickMap[removedTick.instrumentToken] = removedTick;
-                });
-
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to remove item")));
-              }
-            },
-
-            child: _buildWatchlistCard(context, tick: tick),
-          );
+          return _buildWatchlistCard(context, tick: tick);
         },
-      ),
-    );
-  }
-
-  Widget _buildWatchlistCard(BuildContext context, {required TickData tick}) {
-    final color = tick.isUp ? Colors.green.shade700 : Colors.red.shade700;
-    final arrow = tick.isUp ? '▲' : '▼';
-
-    return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InstrumentDetailScreen())),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-        margin: const EdgeInsets.only(bottom: 2),
-        color: Colors.white,
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [const SizedBox(), _buildDetailItem('LTP : ', '₹${tick.lastPrice.toStringAsFixed(2)}', isHighlight: true)],
-            ),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(child: Text(tick.tradingSymbol, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900))),
-                Text('₹${tick.lastPrice.toStringAsFixed(2)}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-                const SizedBox(width: 8),
-                Text(
-                  '$arrow ${tick.change.toStringAsFixed(2)} (${tick.changePercent.toStringAsFixed(2)}%)',
-                  style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildDetailItem('PREV CLOSE : ', '₹${tick.close.toStringAsFixed(2)}'),
-                _buildDetailItem('OPEN : ', '₹${tick.open.toStringAsFixed(2)}'),
-                _buildDetailItem('H : ', '₹${tick.high.toStringAsFixed(2)}'),
-                _buildDetailItem('L : ', '₹${tick.low.toStringAsFixed(2)}', isHighlight: true),
-              ],
-            ),
-            const SizedBox(height: 6),
-          ],
-        ),
       ),
     );
   }
@@ -471,6 +497,29 @@ class _HomeScreenState extends State<HomeScreen> {
         Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isHighlight ? Colors.red.shade400 : Colors.black87)),
       ],
     );
+  }
+
+  void _removeInstrument(TickData tick) async {
+    final token = tick.instrumentToken;
+
+    setState(() => _deletingIds.add(token)); // show spinner
+
+    bool success = false;
+    try {
+      success = await api.removeFromWatchlist(instrumentId: tick.id).timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      // treat a timeout as a failure
+    }
+
+    if (success) {
+      setState(() {
+        _tickMap.remove(token);
+        _deletingIds.remove(token);
+      });
+    } else {
+      setState(() => _deletingIds.remove(token)); // hide spinner
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to remove item')));
+    }
   }
 }
 
