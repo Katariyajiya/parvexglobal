@@ -1,19 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:parvexglobal/pages/add_instrument.dart';
 import 'package:parvexglobal/pages/auth/login_screen.dart';
 import 'package:parvexglobal/pages/home_screen.dart';
-import 'package:parvexglobal/pages/onboarding/onboarding.dart';
-import 'package:parvexglobal/pages/profile.dart';
 import 'package:parvexglobal/services/auth_service.dart';
 import 'package:parvexglobal/utils/user_session.dart';
-
-import 'Mt5SocketTestScreen.dart';
+import 'alert/alert_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  // MobileAds.instance.initialize();
   UserSession.userId = await AuthService.getUserId();
+  await AlertService.instance.init(); // ← load persisted alerts & history
   // UserSession.token = response.token;
   String? userId = UserSession.userId;
   runApp(MyApp(userId));

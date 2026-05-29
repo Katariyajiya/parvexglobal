@@ -1,0 +1,1 @@
+enum AlertCondition { above, below }
