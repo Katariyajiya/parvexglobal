@@ -5,6 +5,8 @@ import 'package:parvexglobal/pages/profile.dart';
 import 'package:parvexglobal/pages/trade_ledger_screen.dart';
 import 'package:parvexglobal/services/trade_service.dart';
 
+import '../utils/ShareAppIcon.dart';
+
 class BaseScreen extends StatefulWidget {
   const BaseScreen({super.key});
 
@@ -25,7 +27,10 @@ class _BaseScreenState extends State<BaseScreen> {
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      title: RichText(
+      title: Image.asset(
+        "assets/images/home_header_img.png",
+        height: 30,
+      ) /*RichText(
         text: const TextSpan(
           text: 'Bhav',
           style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 20),
@@ -36,9 +41,10 @@ class _BaseScreenState extends State<BaseScreen> {
             ),
           ],
         ),
-      ),
+      )*/,
       actions: [
-        Padding(
+        Container(
+          margin: EdgeInsets.only(top: 8),
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
           child: Row(
             children: [
@@ -50,6 +56,13 @@ class _BaseScreenState extends State<BaseScreen> {
         ),
         // Text('12'),
         _buildTotalPnLBanner(),
+
+        ShareAppIcon(
+          onTap: () {
+            print("Sharing...");
+          },
+        ),
+        SizedBox(width: 8),
       ],
     );
   }
@@ -80,10 +93,10 @@ class _BaseScreenState extends State<BaseScreen> {
           ),
           child: Container(
             margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: bgClr,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(6),
               border: Border.all(
                 color: clr.withOpacity(0.25),
                 width: 0.8,

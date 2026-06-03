@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
 import 'package:parvexglobal/pages/UserProfileScreen.dart';
 import 'package:parvexglobal/services/RestApiServices.dart';
 
@@ -14,7 +13,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-
   final RestApiService userService = RestApiService();
 
   bool loading = true;
@@ -27,237 +25,249 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((duration) => loadUser());
+    WidgetsBinding.instance.addPostFrameCallback((_) => loadUser());
   }
 
   Future<void> loadUser() async {
+    if (!mounted) return;
+    setState(() => loading = true);
+
     try {
-
-      showLoader();
-
       final data = await userService.getUser();
 
-      setState(() {
-        name = data["fullName"] ?? "";
-        phone = data["phone"] ?? "";
-        email = data["email"] ?? "";
-        profileImage = data["profileImageUrl"] ?? "";
-        loading = false;
-      });
-
+      if (mounted) {
+        setState(() {
+          name = data["fullName"] ?? "";
+          phone = data["phone"] ?? "";
+          email = data["email"] ?? "";
+          profileImage = data["profileImageUrl"] ?? "";
+          loading = false;
+        });
+      }
     } catch (e) {
       debugPrint("User load error: $e");
+      if (mounted) {
+        setState(() => loading = false);
+      }
     }
-    hideLoader();
-  }
-
-  void showLoader() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
-    );
-  }
-
-  void hideLoader() {
-    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FE),
+      body: loading
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1F63FF)))
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildProfileHeader(),
+                  const SizedBox(height: 32),
 
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
+                  // ── Action Menu / Body ─────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
+                      children: [
+                        _buildMenuCard(),
+                        const SizedBox(height: 32),
 
-            _buildProfileHeader(),
-
-            const SizedBox(height: 40),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-
-              child: OutlinedButton(
-                onPressed: () async {
-
-                  await AuthService.logout();
-
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => LoginScreen()),
-                        (route) => false,
-                  );
-
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12
+                        // ── Logout Button ────────────────────────────────────
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              await AuthService.logout();
+                              if (context.mounted) {
+                                Navigator.pushAndRemoveUntil(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                                  (route) => false,
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red.shade50,
+                              foregroundColor: Colors.redAccent,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                // border: Border.all(color: Colors.red.shade200),
+                              ),
+                            ),
+                            icon: const Icon(Icons.logout, size: 20),
+                            label: const Text(
+                              "Log Out",
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 5,
-                ),
-                child: const Text(
-                  "Logout",
-                  style: TextStyle(color: Colors.black),
-                ),
+                ],
               ),
             ),
-
-            const SizedBox(height: 80),
-
-          ],
-        ),
-      ),
     );
   }
 
+  // ── Header Widget ──────────────────────────────────────────────────────────
   Widget _buildProfileHeader() {
-
-    String initials = "";
-
-    if (name.isNotEmpty) {
-      final parts = name.split(" ");
-      initials = parts.map((e) => e[0]).take(2).join();
+    String initials = "U";
+    if (name.trim().isNotEmpty) {
+      initials = name.trim().split(" ").map((e) => e.isNotEmpty ? e[0] : "").take(2).join().toUpperCase();
     }
+
+    final bool canPop = Navigator.canPop(context);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
-
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 16, 20, 40),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF0D1B3E), Color(0xFF1A2A4D)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1F63FF), Color(0xFF0A3093)], // Brand blue gradient
+        ),
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(12),
+          bottomRight: Radius.circular(12),
         ),
       ),
-
       child: Column(
         children: [
+          // Top Row: Back Button & Edit Button
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (canPop)
+                _IconPillButton(
+                  icon: Icons.arrow_back,
+                  onTap: () => Navigator.maybePop(context),
+                )
+              else
+                const SizedBox(width: 46), // Placeholder to keep Edit button right-aligned
 
-          Align(
-            alignment: Alignment.topLeft,
-            child: _IconPillButton(
-              icon: Icons.arrow_back,
-              onTap: () => Navigator.maybePop(context),
-            ),
+              _buildEditButton(),
+            ],
           ),
-
-          Align(
-            alignment: Alignment.topRight,
-            child: _buildEditButton(),
-          ),
-
           const SizedBox(height: 10),
 
+          // Avatar
           Container(
-            height: 90,
-            width: 90,
-
+            height: 96,
+            width: 96,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.2),
-              borderRadius: BorderRadius.circular(25),
-              border: Border.all(
-                  color: Colors.white24,
-                  width: 2
-              ),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white30, width: 2),
             ),
-
-            child: Center(
-              child: Text(
-                initials,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            child: ClipOval(
+              child: profileImage.isNotEmpty
+                  ? Image.network(
+                      profileImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Center(child: Text(initials, style: _initialsStyle())),
+                    )
+                  : Center(child: Text(initials, style: _initialsStyle())),
             ),
           ),
-
           const SizedBox(height: 16),
 
+          // Name
           Text(
-            name,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
+            name.isNotEmpty ? name : "User Name",
+            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: 0.3),
           ),
+          const SizedBox(height: 6),
 
-          Text(
-            email,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+          // Email
+          if (email.isNotEmpty)
+            Text(
+              email,
+              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14, fontWeight: FontWeight.w500),
             ),
-          ),
 
-          Text(
-            phone,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
+          // Phone
+          if (phone.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              phone,
+              style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
             ),
-          ),
-
-          const SizedBox(height: 16),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildEditButton() {
+  TextStyle _initialsStyle() {
+    return const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold);
+  }
 
-    return GestureDetector(
+  // ── Info/Menu Card ─────────────────────────────────────────────────────────
+  Widget _buildMenuCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildMenuRow(Icons.email_outlined, "Email Address", email.isNotEmpty ? email : "Not provided"),
+          Divider(height: 1, color: Colors.grey.shade100),
+          _buildMenuRow(Icons.phone_outlined, "Phone Number", phone.isNotEmpty ? phone : "Not provided"),
+          Divider(height: 1, color: Colors.grey.shade100),
+          _buildMenuRow(Icons.security_outlined, "Privacy & Security", "Manage settings"),
+        ],
+      ),
+    );
+  }
 
-      onTap: () async {
-        await Navigator.push(context, MaterialPageRoute(builder: (context) => UserProfileScreen()));
-        loadUser();
-      },
-
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 12,
-            vertical: 6
-        ),
-
+  Widget _buildMenuRow(IconData icon, String title, String subtitle) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      leading: Container(
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: const Color(0xFFFFB74D).withOpacity(0.2),
-          borderRadius: BorderRadius.circular(8),
+          color: const Color(0xFF1F63FF).withOpacity(0.08),
+          shape: BoxShape.circle,
         ),
+        child: Icon(icon, color: const Color(0xFF1F63FF), size: 20),
+      ),
+      title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+      subtitle: Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+      trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20),
+    );
+  }
 
+  // ── Buttons ────────────────────────────────────────────────────────────────
+  Widget _buildEditButton() {
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(context, MaterialPageRoute(builder: (context) => const UserProfileScreen()));
+        loadUser(); // Refresh data after returning from edit screen
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white30, width: 1),
+        ),
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-
-            Icon(
-              Icons.edit,
-              color: Color(0xFFFFB74D),
-              size: 14,
-            ),
-
-            SizedBox(width: 4),
-
+            Icon(Icons.edit_outlined, color: Colors.white, size: 16),
+            SizedBox(width: 6),
             Text(
-              'Edit',
-              style: TextStyle(
-                color: Color(0xFFFFB74D),
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
+              'Edit Profile',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ],
         ),
@@ -267,35 +277,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
 }
 
 class _IconPillButton extends StatelessWidget {
-
-  const _IconPillButton({
-    required this.icon,
-    required this.onTap,
-  });
+  const _IconPillButton({required this.icon, required this.onTap});
 
   final IconData icon;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: 46,
-        height: 46,
-
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F5FB),
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white30, width: 1),
         ),
-
-        child: Icon(
-          icon,
-          color: const Color(0xFF0D1B2A),
-        ),
+        child: Icon(icon, color: Colors.white, size: 20),
       ),
     );
   }

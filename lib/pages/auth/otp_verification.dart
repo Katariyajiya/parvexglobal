@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:parvexglobal/extension/extension_functions.dart';
+import 'package:parvexglobal/pages/BaseScreen.dart';
 import 'package:parvexglobal/pages/home_screen.dart';
 
 import '../../models/verify_otp_request.dart';
@@ -81,7 +82,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => HomeScreen()),
+        MaterialPageRoute(builder: (_) => BaseScreen()),
             (route) => false,
       );
 

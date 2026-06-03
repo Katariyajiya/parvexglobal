@@ -233,18 +233,18 @@ class _TradeLedgerScreenState extends State<TradeLedgerScreen>
           ),
         ],
       ),
-      floatingActionButton: _tab.index == 0
-          ? FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF1F63FF),
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          'Add Trade',
-          style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w700),
-        ),
-        onPressed: _showAddTrade,
-      )
-          : null,
+      // floatingActionButton: _tab.index == 0
+      //     ? FloatingActionButton.extended(
+      //   backgroundColor: const Color(0xFF1F63FF),
+      //   icon: const Icon(Icons.add, color: Colors.white),
+      //   label: const Text(
+      //     'Add Trade',
+      //     style: TextStyle(
+      //         color: Colors.white, fontWeight: FontWeight.w700),
+      //   ),
+      //   onPressed: _showAddTrade,
+      // )
+      //     : null,
     );
   }
 
@@ -252,23 +252,14 @@ class _TradeLedgerScreenState extends State<TradeLedgerScreen>
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      leading: const BackButton(color: Colors.black),
-      title: RichText(
-        text: const TextSpan(
-          text: 'Trade ',
-          style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.bold,
-              fontSize: 20),
-          children: [
-            TextSpan(
-              text: 'Ledger',
-              style: TextStyle(
-                  color: Colors.blueAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20),
-            ),
-          ],
+      // leading: const BackButton(color: Colors.black),
+      title: const Text(
+        'Trade Ledger',
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: Colors.black87,
+          letterSpacing: 0.2,
         ),
       ),
     );
