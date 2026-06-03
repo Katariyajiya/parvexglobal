@@ -26,6 +26,35 @@ import 'UserProfileScreen.dart';
 import 'add_instrument.dart';
 import 'instrument_detail.dart';
 import 'profile.dart';
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:parvexglobal/alert/PriceAlert.dart';
+import 'package:parvexglobal/alert/alert_banner.dart';
+import 'package:parvexglobal/alert/alert_service.dart';
+import 'package:parvexglobal/alert/alert_sound_service.dart';
+import 'package:parvexglobal/alert/set_alert_bottom_sheet.dart';
+import 'package:parvexglobal/bottomsheet/add_trade_bottom_sheet.dart';
+import 'package:parvexglobal/extension/extension_functions.dart';
+import 'package:parvexglobal/models/tick_data.dart';
+import 'package:parvexglobal/pages/AlertHistoryScreen.dart';
+import 'package:parvexglobal/pages/trade_ledger_screen.dart';
+import 'package:parvexglobal/services/RestApiServices.dart';
+import 'package:parvexglobal/services/trade_service.dart';
+import 'package:parvexglobal/utils/ad_banner_widget.dart';
+import 'package:parvexglobal/utils/user_session.dart';
+import 'package:stomp_dart_client/stomp.dart';
+import 'package:stomp_dart_client/stomp_config.dart';
+import 'package:stomp_dart_client/stomp_frame.dart';
+import 'package:http/http.dart' as http;
+
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+import 'UserProfileScreen.dart';
+import 'add_instrument.dart';
+import 'instrument_detail.dart';
+import 'profile.dart';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const String _wsUrl = 'http://13.127.145.152:5001/ws';
@@ -53,9 +82,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final api = RestApiService();
 
-  // ── Alert services (NEW) ───────────────────────────────────────────────────
+  // ── Alert services ─────────────────────────────────────────────────────────
   final _alertService = AlertService.instance;
   final _soundService = AlertSoundService.instance;
+
+  // ── Trade service (NEW) ────────────────────────────────────────────────────
+  final _tradeService = TradeService.instance;
 
   @override
   void initState() {
@@ -63,7 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     _userId = UserSession.userId.toString();
 
-    // Wire up alert callback (NEW)
+    // Wire up alert callback
     _alertService.onAlertFired = _onAlertFired;
 
     WidgetsBinding.instance.addPostFrameCallback((duration) {
@@ -77,10 +109,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onAlertFiredTest() {
     print("Testing Alert");
-    // _soundService.playAlert();
   }
 
-  // ── NEW: Called whenever any alert fires ───────────────────────────────────
   void _onAlertFired(PriceAlert alert) {
     if (!mounted) return;
     _soundService.playAlert(alert);
@@ -117,11 +147,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _stomp?.deactivate();
     http.delete(Uri.parse('$_baseUrl/api/v1/watchlist/$_userId'));
-    _soundService.dispose(); // ← NEW
+    _soundService.dispose();
     super.dispose();
   }
 
-  // ── Update check ──────────────────────────────────────────────────────────
+  // ── Update check ───────────────────────────────────────────────────────────
   void _checkForUpdate() async {
     final update = await api.fetchLatestAppUpdate(platform: 'ANDROID');
     if (update == null) return;
@@ -178,9 +208,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _launchDownload(String url) async {
     final uri = Uri.parse(url);
-    // if (await canLaunchUrl(uri)) {
-    //   await launchUrl(uri, mode: LaunchMode.externalApplication);
-    // }
+    // await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   // ── WebSocket: International ───────────────────────────────────────────────
@@ -195,8 +223,14 @@ class _HomeScreenState extends State<HomeScreen> {
               if (tick.tradingSymbol.isNotEmpty) {
                 tick.instrumentToken = mapAlphabetsToInt(tick.tradingSymbol);
 
-                // ── Check alerts for this tick (NEW) ──────────────────────
+                // ── Alert check ────────────────────────────────────────────
                 _alertService.checkTick(
+                  token: tick.instrumentToken,
+                  price: tick.lastPrice,
+                );
+
+                // ── Push live price to open trades (NEW) ───────────────────
+                _tradeService.pushTick(
                   token: tick.instrumentToken,
                   price: tick.lastPrice,
                 );
@@ -252,9 +286,17 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
     });
+
+    // After snapshot, push all known prices into TradeService so open trades
+    // get their live price set immediately (before the next STOMP tick).
+    final priceMap = <int, double>{};
+    for (final tick in _tickMap.values) {
+      priceMap[tick.instrumentToken] = tick.lastPrice;
+    }
+    _tradeService.pushTickMap(priceMap);
   }
 
-  // ── STOMP ─────────────────────────────────────────────────────────────────
+  // ── STOMP ──────────────────────────────────────────────────────────────────
   void _connectStomp() {
     _stomp?.deactivate();
     _stomp = StompClient(
@@ -286,8 +328,14 @@ class _HomeScreenState extends State<HomeScreen> {
             final tick = TickData.fromJson(item as Map<String, dynamic>);
             _tickMap[tick.instrumentToken] = tick;
 
-            // ── Check alerts for this tick (NEW) ──────────────────────────
+            // ── Alert check ──────────────────────────────────────────────
             _alertService.checkTick(
+              token: tick.instrumentToken,
+              price: tick.lastPrice,
+            );
+
+            // ── Push live price to open trades (NEW) ─────────────────────
+            _tradeService.pushTick(
               token: tick.instrumentToken,
               price: tick.lastPrice,
             );
@@ -309,7 +357,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // appBar: _buildAppBar(),
       body: Column(
         children: [
           SampleAdMobBanner(),
@@ -324,53 +371,24 @@ class _HomeScreenState extends State<HomeScreen> {
   double _editSlide = 56;
 
   // ── Watchlist card ─────────────────────────────────────────────────────────
-  // Matches the BhavTav screenshot design exactly:
-  // • Colored avatar circle with initials (left)
-  // • Symbol name (bold) + subtitle (muted, below)
-  // • Price on the right (large, bold)
-  // • RISING / FALLING label + colored % pill badge
-  // • Prev close / Open / H/L detail row at the bottom
-  // • Subtle green/red tinted card background
-
   Widget _buildWatchlistCard(BuildContext context, {required TickData tick}) {
     final isUp = tick.isUp;
     final directionColor = isUp ? const Color(0xFF1E7D3A) : const Color(0xFFCC2929);
-    final bgColor = isUp ? const Color(0xFFF8FDF9) : const Color(0xFFFEF7F7);
     final pillBgColor = isUp ? const Color(0xFFD6F3E0) : const Color(0xFFF9D6D6);
     final pillTextColor = isUp ? const Color(0xFF1A6E33) : const Color(0xFFB82323);
-    final directionLabel = isUp ? 'RISING' : 'FALLING';
     final directionIcon = isUp ? Icons.trending_up : Icons.trending_down_outlined;
 
-    // Initials from trading symbol (up to 2 chars)
-    final initials = tick.tradingSymbol.length >= 2 ? tick.tradingSymbol.substring(0, 2).toUpperCase() : tick.tradingSymbol.toUpperCase();
-
-    // Avatar colors — rotate through a set based on symbol hash
-    final avatarColors = [
-      (bg: const Color(0xFF4CAF50), text: Colors.white), // green
-      (bg: const Color(0xFF1F63FF), text: Colors.white), // blue
-      (bg: const Color(0xFFE48C1A), text: Colors.white), // amber
-      (bg: const Color(0xFF9C27B0), text: Colors.white), // purple
-      (bg: const Color(0xFFE53935), text: Colors.white), // red
-      (bg: const Color(0xFF00ACC1), text: Colors.white), // teal
-    ];
-    final avatarStyle = avatarColors[tick.tradingSymbol.hashCode.abs() % avatarColors.length];
-
-    // NEW: does this instrument have any active (non-triggered) alert?
+    // Does this instrument have any active alert?
     final hasAlert = _alertService.alertsForToken(tick.instrumentToken).any((a) => !a.triggered);
 
     return Stack(
       children: [
-        // ── Card ────────────────────────────────────────────────────────────
+        // ── Card ──────────────────────────────────────────────────────────
         AnimatedSlide(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
           offset: _editing ? Offset(1, 0) * (_editSlide / MediaQuery.of(context).size.width) : Offset.zero,
           child: GestureDetector(
-            onTap: () {
-              // if (_editing) return;
-              // Navigator.push(context,
-              //   MaterialPageRoute(builder: (_) => const InstrumentDetailScreen()));
-            },
             onLongPress: () => SetAlertBottomSheet.show(
               context,
               instrumentToken: tick.instrumentToken,
@@ -380,13 +398,11 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
-                // color: bgColor,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
                   color: isUp ? const Color(0xFFB2DFBE) : const Color(0xFFF1B8B8),
                   width: 0.8,
                 ),
-
                 gradient: LinearGradient(
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
@@ -406,31 +422,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                 child: Column(
                   children: [
-                    // ── Top row: avatar + name/subtitle | price + direction ──
+                    // ── Top row ────────────────────────────────────────────
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Avatar circle
-                        // Container(
-                        //   width: 30,
-                        //   height: 30,
-                        //   decoration: BoxDecoration(
-                        //     color: avatarStyle.bg,
-                        //     shape: BoxShape.circle,
-                        //   ),
-                        //   alignment: Alignment.center,
-                        //   child: Text(
-                        //     initials,
-                        //     style: TextStyle(
-                        //       color: avatarStyle.text,
-                        //       fontWeight: FontWeight.w700,
-                        //       fontSize: 15,
-                        //     ),
-                        //   ),
-                        // ),
                         const SizedBox(width: 4),
 
-                        // Symbol name + subtitle
+                        // Symbol name + action buttons
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -443,9 +441,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                   letterSpacing: 0.2,
                                 ),
                               ),
-                              SizedBox(height: 6),
+                              const SizedBox(height: 6),
                               Row(
                                 children: [
+                                  // ── Set Alert button ───────────────────
                                   InkWell(
                                     onTap: () => SetAlertBottomSheet.show(
                                       context,
@@ -453,28 +452,27 @@ class _HomeScreenState extends State<HomeScreen> {
                                       symbol: tick.tradingSymbol,
                                       currentPrice: tick.lastPrice,
                                     ),
-                                    borderRadius: BorderRadius.circular(12), // Matches the container's radius
+                                    borderRadius: BorderRadius.circular(6),
                                     child: Container(
-                                      // Adjusted padding: wider on the sides to accommodate the text
                                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                                       decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(6), // Pill shape
+                                        borderRadius: BorderRadius.circular(6),
                                         color: hasAlert ? const Color(0xFF1F63FF).withOpacity(0.08) : Colors.grey.shade100,
                                       ),
                                       child: Row(
-                                        mainAxisSize: MainAxisSize.min, // Keeps the button from stretching
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
                                             hasAlert ? Icons.notifications_active : Icons.notifications_none,
-                                            size: 16, // Scaled down slightly to balance with the text
+                                            size: 16,
                                             color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade500,
                                           ),
-                                          const SizedBox(width: 4), // Small gap between icon and text
+                                          const SizedBox(width: 4),
                                           Text(
                                             "Set Alert",
                                             style: TextStyle(
-                                              fontSize: 12, // Keeps it subtle
-                                              fontWeight: FontWeight.w500, // Medium weight for readability
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
                                               color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade600,
                                             ),
                                           ),
@@ -482,45 +480,47 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8), // Small gap between icon and text
+
+                                  const SizedBox(width: 8),
+
+                                  // ── Add Trade button (NEW) ─────────────
                                   InkWell(
-                                    onTap: () {
-                                      // TODO: Open Add Trade BottomSheet or Screen
-                                    },
-                                    borderRadius: BorderRadius.circular(6), // Matches the container's radius
+                                    onTap: () => AddTradeBottomSheet.show(
+                                      context,
+                                      symbol: tick.tradingSymbol,
+                                      instrumentToken: tick.instrumentToken,
+                                      currentPrice: tick.lastPrice,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
                                     child: Container(
-                                      // Identical padding to the Set Alert button
                                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                                       decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(6), // Pill shape
-                                        // Unique Purple color background for Trades
-                                        color: true ? const Color(0xFF7C4DFF).withOpacity(0.08) : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(6),
+                                        color: const Color(0xFF7C4DFF).withOpacity(0.08),
                                       ),
                                       child: Row(
-                                        mainAxisSize: MainAxisSize.min, // Keeps the button from stretching
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(
-                                            true ? Icons.add_chart : Icons.show_chart, // Distinct trading icon
-                                            size: 16, // Scaled down slightly to balance with the text
-                                            color: true ? const Color(0xFF7C4DFF) : Colors.grey.shade500,
+                                          const Icon(
+                                            Icons.add_chart,
+                                            size: 16,
+                                            color: Color(0xFF7C4DFF),
                                           ),
-                                          const SizedBox(width: 4), // Small gap between icon and text
-                                          Text(
+                                          const SizedBox(width: 4),
+                                          const Text(
                                             "Add Trade",
                                             style: TextStyle(
-                                              fontSize: 12, // Keeps it subtle
-                                              fontWeight: FontWeight.w500, // Medium weight for readability
-                                              color: true ? const Color(0xFF7C4DFF) : Colors.grey.shade600,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF7C4DFF),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
                                   ),
-
                                 ],
                               ),
-
                             ],
                           ),
                         ),
@@ -529,7 +529,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            // Price
                             Text(
                               '₹${tick.lastPrice.toStringAsFixed(2)}',
                               style: const TextStyle(
@@ -539,63 +538,31 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            // Direction label row
                             Row(
                               children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    // RISING / FALLING label
-                                    // Row(
-                                    //   children: [
-                                    //     Container(
-                                    //       width: 10,
-                                    //       height: 10,
-                                    //       decoration: BoxDecoration(
-                                    //         border: Border.all(color: directionColor, width: 1.5),
-                                    //         borderRadius: BorderRadius.circular(2),
-                                    //       ),
-                                    //     ),
-                                    //     const SizedBox(width: 4),
-                                    //     Text(
-                                    //       directionLabel,
-                                    //       style: TextStyle(
-                                    //         color: directionColor,
-                                    //         fontSize: 12,
-                                    //         fontWeight: FontWeight.w700,
-                                    //         letterSpacing: 0.5,
-                                    //       ),
-                                    //     ),
-                                    //   ],
-                                    // ),
-                                    // const SizedBox(width: 6),
-                                    // Percentage pill badge
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                      decoration: BoxDecoration(
-                                        color: pillBgColor,
-                                        borderRadius: BorderRadius.circular(6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: pillBgColor,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(directionIcon, size: 14, color: directionColor),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '${tick.changePercent.toStringAsFixed(2)}%',
+                                        style: TextStyle(
+                                          color: pillTextColor,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(directionIcon, size: 14, color: directionColor),
-                                          const SizedBox(width: 3),
-                                          Text(
-                                            '${tick.changePercent.toStringAsFixed(2)}%',
-                                            style: TextStyle(
-                                              color: pillTextColor,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
-                                SizedBox(width: 4),
+                                const SizedBox(width: 4),
                                 Text(
                                   '${tick.change.toStringAsFixed(2)}',
                                   style: TextStyle(
@@ -609,7 +576,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
 
-                        // Bell icon (alert) — top-right
                         const SizedBox(width: 6),
                       ],
                     ),
@@ -622,7 +588,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(height: 8),
 
-                    // ── Bottom row: Prev close | Open | H / L ────────────────
+                    // ── Bottom row ─────────────────────────────────────────
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -642,7 +608,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
 
-        // ── Delete button (edit mode) ──────────────────────────────────────
+        // ── Delete button (edit mode) ────────────────────────────────────
         if (_editing)
           Positioned(
             left: 0,
@@ -667,7 +633,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Detail label + value column (bottom row) ─────────────────────────────────
+  // ── Detail label + value column ────────────────────────────────────────────
   Widget _buildDetailItem(String label, String value, {bool alignEnd = false}) {
     return Column(
       crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
@@ -692,7 +658,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── AppBar ─────────────────────────────────────────────────────────────────
+  // ── AppBar ──────────────────────────────────────────────────────────────────
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.white,
@@ -722,10 +688,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         _buildAppBarAction(
           Icons.search,
-          () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AddInstrument()),
-          ),
+          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddInstrument())),
         ),
         Padding(
           padding: const EdgeInsets.only(right: 16, left: 8),
@@ -734,12 +697,8 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Icon(Icons.person, color: Colors.white, size: 20),
           ),
         ).onClick(
-          () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-          ),
+          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
         ),
-
         Padding(
           padding: const EdgeInsets.only(right: 16, left: 8),
           child: const CircleAvatar(
@@ -754,34 +713,28 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Watchlist header ───────────────────────────────────────────────────────
   Widget _buildWatchlistHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 0, 0),
+      padding: const EdgeInsets.fromLTRB(16, 8, 0, 0),
       child: Row(
         children: [
           const Text('My WatchList', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)).onClick(() {
             _onAlertFiredTest();
           }),
           const Spacer(),
-        // 1. The "+ Add" Button
+
+          // + Add button
           InkWell(
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const AddInstrument()),
-            ),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddInstrument())),
             borderRadius: BorderRadius.circular(6),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
-                color: const Color(0xFF1F63FF).withOpacity(0.08), // Light blue background
+                color: const Color(0xFF1F63FF).withOpacity(0.08),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: const [
-                  Icon(
-                    Icons.add,
-                    size: 16,
-                    color: Color(0xFF1F63FF),
-                  ),
+                  Icon(Icons.add, size: 16, color: Color(0xFF1F63FF)),
                   SizedBox(width: 4),
                   Text(
                     "Add",
@@ -796,9 +749,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          const SizedBox(width: 8), // Add a little spacing between the buttons
+          const SizedBox(width: 8),
 
-          // 2. The "Edit / Done" Button
+          // Edit / Done button
           InkWell(
             onTap: () => setState(() => _editing = !_editing),
             borderRadius: BorderRadius.circular(6),
@@ -806,7 +759,6 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
-                // Solid blue when editing (Done), light grey when not (Edit)
                 color: _editing ? const Color(0xFF1F63FF) : Colors.grey.shade100,
               ),
               child: Row(
@@ -830,7 +782,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 20), // Add a little spacing between the buttons
+          const SizedBox(width: 20),
         ],
       ),
     );
@@ -913,7 +865,6 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _tickMap.remove(token);
         _deletingIds.remove(token);
-        // Also remove any alerts for this token (NEW)
         _alertService.removeAllForToken(token);
       });
     } else {
