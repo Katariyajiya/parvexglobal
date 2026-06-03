@@ -13,6 +13,8 @@
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:parvexglobal/alert/AlertDirection.dart';
+import 'package:parvexglobal/alert/PriceAlert.dart';
 
 class AlertSoundService {
   AlertSoundService._();
@@ -26,12 +28,12 @@ class AlertSoundService {
   void toggleSound(bool value) => _isSoundEnabled = value;
 
   /// Call this when an alert fires.
-  Future<void> playAlert() async {
+  Future<void> playAlert(PriceAlert alert) async {
     if (!_isSoundEnabled) return;
     try {
       // Stop any current playback first so rapid alerts don't queue up.
       await _player.stop();
-      await _player.play(AssetSource('sounds/target.wav'));
+      await _player.play(alert.alertType == AlertType.Target ? AssetSource('sounds/target.wav') : AssetSource('sounds/alert.wav'));
     } catch (e) {
       debugPrint('[AlertSoundService] Could not play sound: $e');
     }

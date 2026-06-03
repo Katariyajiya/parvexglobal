@@ -10,6 +10,7 @@ import 'package:parvexglobal/alert/AlertDirection.dart';
 import 'package:parvexglobal/alert/PriceAlert.dart';
 import 'package:parvexglobal/alert/alert_service.dart';
 import 'package:parvexglobal/pages/AlertHistoryScreen.dart';
+import 'package:parvexglobal/pages/alert.dart';
 
 class SetAlertBottomSheet extends StatefulWidget {
   final int instrumentToken;
@@ -49,6 +50,7 @@ class SetAlertBottomSheet extends StatefulWidget {
 class _SetAlertBottomSheetState extends State<SetAlertBottomSheet> {
   final _priceController = TextEditingController();
   AlertDirection _direction = AlertDirection.above;
+  AlertType _alertType = AlertType.Target;
   final _alertService = AlertService.instance;
 
   @override
@@ -149,6 +151,26 @@ class _SetAlertBottomSheetState extends State<SetAlertBottomSheet> {
                 selected: _direction == AlertDirection.below,
                 color: Colors.red,
                 onTap: () => setState(() => _direction = AlertDirection.below),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // ── Direction toggle ─────────────────────────────────────
+          Row(
+            children: [
+              _DirectionChip(
+                label: 'Target ',
+                selected: _alertType == AlertType.Target,
+                color: Colors.green,
+                onTap: () => setState(() => _alertType = AlertType.Target),
+              ),
+              const SizedBox(width: 12),
+              _DirectionChip(
+                label: 'Stoploss',
+                selected: _alertType == AlertType.Stoploss,
+                color: Colors.red,
+                onTap: () => setState(() => _alertType = AlertType.Stoploss),
               ),
             ],
           ),

@@ -9,6 +9,7 @@ class PriceAlert {
   final AlertCondition condition;
   bool triggered;
   AlertDirection direction;
+  AlertType? alertType;
 
   PriceAlert({
     required this.id,

@@ -10,6 +10,7 @@ import 'package:parvexglobal/alert/set_alert_bottom_sheet.dart';
 import 'package:parvexglobal/extension/extension_functions.dart';
 import 'package:parvexglobal/models/tick_data.dart';
 import 'package:parvexglobal/pages/AlertHistoryScreen.dart';
+import 'package:parvexglobal/pages/trade_ledger_screen.dart';
 import 'package:parvexglobal/services/RestApiServices.dart';
 import 'package:parvexglobal/utils/ad_banner_widget.dart';
 import 'package:parvexglobal/utils/user_session.dart';
@@ -76,14 +77,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onAlertFiredTest() {
     print("Testing Alert");
-    _soundService.playAlert();
+    // _soundService.playAlert();
   }
 
   // ── NEW: Called whenever any alert fires ───────────────────────────────────
   void _onAlertFired(PriceAlert alert) {
     if (!mounted) return;
-    _soundService.playAlert(); // 🔔 play sound
-    AlertBannerOverlay.show(context, alert); // 📢 show banner
+    _soundService.playAlert(alert);
+    AlertBannerOverlay.show(context, alert);
   }
 
   // ── Category classifier ────────────────────────────────────────────────────
@@ -308,7 +309,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: _buildAppBar(),
+      // appBar: _buildAppBar(),
       body: Column(
         children: [
           SampleAdMobBanner(),
@@ -410,24 +411,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         // Avatar circle
-                        Container(
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: avatarStyle.bg,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            initials,
-                            style: TextStyle(
-                              color: avatarStyle.text,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 15,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
+                        // Container(
+                        //   width: 30,
+                        //   height: 30,
+                        //   decoration: BoxDecoration(
+                        //     color: avatarStyle.bg,
+                        //     shape: BoxShape.circle,
+                        //   ),
+                        //   alignment: Alignment.center,
+                        //   child: Text(
+                        //     initials,
+                        //     style: TextStyle(
+                        //       color: avatarStyle.text,
+                        //       fontWeight: FontWeight.w700,
+                        //       fontSize: 15,
+                        //     ),
+                        //   ),
+                        // ),
+                        const SizedBox(width: 4),
 
                         // Symbol name + subtitle
                         Expanded(
@@ -443,42 +444,83 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                               SizedBox(height: 6),
-                              InkWell(
-                                onTap: () => SetAlertBottomSheet.show(
-                                  context,
-                                  instrumentToken: tick.instrumentToken,
-                                  symbol: tick.tradingSymbol,
-                                  currentPrice: tick.lastPrice,
-                                ),
-                                borderRadius: BorderRadius.circular(12), // Matches the container's radius
-                                child: Container(
-                                  // Adjusted padding: wider on the sides to accommodate the text
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(6), // Pill shape
-                                    color: hasAlert ? const Color(0xFF1F63FF).withOpacity(0.08) : Colors.grey.shade100,
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min, // Keeps the button from stretching
-                                    children: [
-                                      Icon(
-                                        hasAlert ? Icons.notifications_active : Icons.notifications_none,
-                                        size: 16, // Scaled down slightly to balance with the text
-                                        color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade500,
+                              Row(
+                                children: [
+                                  InkWell(
+                                    onTap: () => SetAlertBottomSheet.show(
+                                      context,
+                                      instrumentToken: tick.instrumentToken,
+                                      symbol: tick.tradingSymbol,
+                                      currentPrice: tick.lastPrice,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12), // Matches the container's radius
+                                    child: Container(
+                                      // Adjusted padding: wider on the sides to accommodate the text
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(6), // Pill shape
+                                        color: hasAlert ? const Color(0xFF1F63FF).withOpacity(0.08) : Colors.grey.shade100,
                                       ),
-                                      const SizedBox(width: 4), // Small gap between icon and text
-                                      Text(
-                                        "Set Alert",
-                                        style: TextStyle(
-                                          fontSize: 12, // Keeps it subtle
-                                          fontWeight: FontWeight.w500, // Medium weight for readability
-                                          color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade600,
-                                        ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min, // Keeps the button from stretching
+                                        children: [
+                                          Icon(
+                                            hasAlert ? Icons.notifications_active : Icons.notifications_none,
+                                            size: 16, // Scaled down slightly to balance with the text
+                                            color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade500,
+                                          ),
+                                          const SizedBox(width: 4), // Small gap between icon and text
+                                          Text(
+                                            "Set Alert",
+                                            style: TextStyle(
+                                              fontSize: 12, // Keeps it subtle
+                                              fontWeight: FontWeight.w500, // Medium weight for readability
+                                              color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 8), // Small gap between icon and text
+                                  InkWell(
+                                    onTap: () {
+                                      // TODO: Open Add Trade BottomSheet or Screen
+                                    },
+                                    borderRadius: BorderRadius.circular(6), // Matches the container's radius
+                                    child: Container(
+                                      // Identical padding to the Set Alert button
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(6), // Pill shape
+                                        // Unique Purple color background for Trades
+                                        color: true ? const Color(0xFF7C4DFF).withOpacity(0.08) : Colors.grey.shade100,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min, // Keeps the button from stretching
+                                        children: [
+                                          Icon(
+                                            true ? Icons.add_chart : Icons.show_chart, // Distinct trading icon
+                                            size: 16, // Scaled down slightly to balance with the text
+                                            color: true ? const Color(0xFF7C4DFF) : Colors.grey.shade500,
+                                          ),
+                                          const SizedBox(width: 4), // Small gap between icon and text
+                                          Text(
+                                            "Add Trade",
+                                            style: TextStyle(
+                                              fontSize: 12, // Keeps it subtle
+                                              fontWeight: FontWeight.w500, // Medium weight for readability
+                                              color: true ? const Color(0xFF7C4DFF) : Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+
+                                ],
                               ),
+
                             ],
                           ),
                         ),
@@ -500,51 +542,66 @@ class _HomeScreenState extends State<HomeScreen> {
                             // Direction label row
                             Row(
                               children: [
-                                // RISING / FALLING label
-                                // Row(
-                                //   children: [
-                                //     Container(
-                                //       width: 10,
-                                //       height: 10,
-                                //       decoration: BoxDecoration(
-                                //         border: Border.all(color: directionColor, width: 1.5),
-                                //         borderRadius: BorderRadius.circular(2),
-                                //       ),
-                                //     ),
-                                //     const SizedBox(width: 4),
-                                //     Text(
-                                //       directionLabel,
-                                //       style: TextStyle(
-                                //         color: directionColor,
-                                //         fontSize: 12,
-                                //         fontWeight: FontWeight.w700,
-                                //         letterSpacing: 0.5,
-                                //       ),
-                                //     ),
-                                //   ],
-                                // ),
-                                // const SizedBox(width: 6),
-                                // Percentage pill badge
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: pillBgColor,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(directionIcon, size: 14, color: directionColor),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        '${tick.changePercent.toStringAsFixed(2)}%',
-                                        style: TextStyle(
-                                          color: pillTextColor,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                        ),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    // RISING / FALLING label
+                                    // Row(
+                                    //   children: [
+                                    //     Container(
+                                    //       width: 10,
+                                    //       height: 10,
+                                    //       decoration: BoxDecoration(
+                                    //         border: Border.all(color: directionColor, width: 1.5),
+                                    //         borderRadius: BorderRadius.circular(2),
+                                    //       ),
+                                    //     ),
+                                    //     const SizedBox(width: 4),
+                                    //     Text(
+                                    //       directionLabel,
+                                    //       style: TextStyle(
+                                    //         color: directionColor,
+                                    //         fontSize: 12,
+                                    //         fontWeight: FontWeight.w700,
+                                    //         letterSpacing: 0.5,
+                                    //       ),
+                                    //     ),
+                                    //   ],
+                                    // ),
+                                    // const SizedBox(width: 6),
+                                    // Percentage pill badge
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: pillBgColor,
+                                        borderRadius: BorderRadius.circular(6),
                                       ),
-                                    ],
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(directionIcon, size: 14, color: directionColor),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            '${tick.changePercent.toStringAsFixed(2)}%',
+                                            style: TextStyle(
+                                              color: pillTextColor,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  '${tick.change.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    color: pillTextColor,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ],
@@ -689,12 +746,7 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: Color(0xFFFF3264),
             child: Icon(Icons.notifications, color: Colors.white, size: 20),
           ),
-        ).onClick(
-          () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AlertHistoryScreen()),
-          ),
-        ),
+        ).onClick(() => Navigator.push(context, MaterialPageRoute(builder: (_) => const TradeLedgerScreen()))),
       ],
     );
   }
@@ -709,23 +761,76 @@ class _HomeScreenState extends State<HomeScreen> {
             _onAlertFiredTest();
           }),
           const Spacer(),
-          TextButton(
-            onPressed: () => Navigator.push(
+        // 1. The "+ Add" Button
+          InkWell(
+            onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const AddInstrument()),
             ),
-            child: const Text(
-              '+ Add',
-              style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                color: const Color(0xFF1F63FF).withOpacity(0.08), // Light blue background
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(
+                    Icons.add,
+                    size: 16,
+                    color: Color(0xFF1F63FF),
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    "Add",
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F63FF),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          TextButton(
-            onPressed: () => setState(() => _editing = !_editing),
-            child: Text(
-              _editing ? 'Done' : 'Edit',
-              style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+
+          const SizedBox(width: 8), // Add a little spacing between the buttons
+
+          // 2. The "Edit / Done" Button
+          InkWell(
+            onTap: () => setState(() => _editing = !_editing),
+            borderRadius: BorderRadius.circular(6),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                // Solid blue when editing (Done), light grey when not (Edit)
+                color: _editing ? const Color(0xFF1F63FF) : Colors.grey.shade100,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _editing ? Icons.check : Icons.edit_outlined,
+                    size: 16,
+                    color: _editing ? Colors.white : Colors.grey.shade700,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _editing ? 'Done' : 'Edit',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: _editing ? Colors.white : Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+          const SizedBox(width: 20), // Add a little spacing between the buttons
         ],
       ),
     );

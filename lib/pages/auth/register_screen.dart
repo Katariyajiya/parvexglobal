@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:parvexglobal/pages/BaseScreen.dart';
 import '../home_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -92,7 +93,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ? () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const HomeScreen(),
+                                  builder: (context) => const BaseScreen(),
                                 ),
                               )
                               : null, // Disables button if false

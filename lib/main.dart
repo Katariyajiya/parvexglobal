@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:parvexglobal/pages/BaseScreen.dart';
 import 'package:parvexglobal/pages/auth/login_screen.dart';
 import 'package:parvexglobal/pages/home_screen.dart';
 import 'package:parvexglobal/services/auth_service.dart';
@@ -29,7 +30,7 @@ class MyApp extends StatelessWidget {
         textTheme: GoogleFonts.sourceSans3TextTheme(),
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: userId == null ? LoginScreen() : HomeScreen(),
+      home: userId == null ? LoginScreen() : BaseScreen(),
     );
   }
 }
