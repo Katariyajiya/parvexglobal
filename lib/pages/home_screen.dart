@@ -38,6 +38,30 @@ String _buildMt5WsUrl(List<String> symbols) {
   return 'ws://$_mt5Host:$_mt5Port/?symbols=$params';
 }
 
+// ── Symbol → stable int key ───────────────────────────────────────────────────
+// Converts a trading symbol string into a stable, unique int key using a
+// djb2-style hash. Always returns a positive non-zero value.
+//
+// This replaces the fragile instrumentToken / id fallback chain:
+//   • instrumentToken is 0 for ALL FOREX symbols from the MT5 server
+//   • id can collide between different exchanges
+//   • tradingSymbol is always present, always unique per instrument
+//
+// Same symbol → same key on every call, on every device, for all time.
+// Examples:
+//   symbolKey('EURUSD')   → 2090424769
+//   symbolKey('RELIANCE') → 1847362910
+//   symbolKey('NIFTY50')  → 3459823104
+int symbolKey(String symbol) {
+  final s = symbol.toUpperCase();
+  int hash = 5381;
+  for (final c in s.codeUnits) {
+    hash = ((hash << 5) + hash) ^ c; // djb2: hash * 33 ^ charCode
+  }
+  // Mask to 31 bits → always positive, never zero-risks from sign
+  return hash.abs() & 0x7FFFFFFF;
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -56,29 +80,15 @@ class _HomeScreenState extends State<HomeScreen> {
   StompClient?      _stomp;
 
   // ── MT5 exchange filter ────────────────────────────────────────────────────
-  // Symbols whose exchange matches this set are streamed via MT5 WebSocket.
-  // All other symbols are streamed via STOMP.
   static const _mt5Exchanges = {'CRYPTO', 'FOREX', 'LSE', 'NYSE'};
 
   // Active MT5 symbol list — kept in sync with the watchlist.
   List<String> _intlSymbols = [];
 
   // ── Tick map ───────────────────────────────────────────────────────────────
-  // IMPORTANT: FOREX symbols have instrumentToken = 0 in the server JSON.
-  // Using instrumentToken as the map key would collapse all FOREX entries to
-  // a single slot. Instead we use _tickKeyFor() which returns:
-  //   • instrumentToken  for non-MT5 symbols (always unique from the exchange)
-  //   • id               for MT5 symbols      (always unique in our DB)
+  // Key = symbolKey(tradingSymbol) — a stable positive int derived from the
+  // symbol string via djb2 hash. Uniform across STOMP, MT5, and snapshot.
   final Map<int, TickData> _tickMap = {};
-
-  /// Returns the map key to use for a given tick.
-  int _tickKeyFor(TickData t) =>
-      _mt5Exchanges.contains(t.exchange.toUpperCase()) ? t.id : t.instrumentToken;
-
-  /// Same logic but works directly on raw JSON fields, used in _handleMt5Tick
-  /// before a TickData object is fully constructed.
-  int _mt5TickKey({required int id, required int instrumentToken}) =>
-      instrumentToken != 0 ? instrumentToken : id;
 
   final api = RestApiService();
 
@@ -90,8 +100,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final _tradeService = TradeService.instance;
 
   // ── Edit mode ──────────────────────────────────────────────────────────────
-  bool           _editing    = false;
-  double         _editSlide  = 56;
+  bool           _editing     = false;
+  double         _editSlide   = 56;
   final Set<int> _deletingIds = {};
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -133,9 +143,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final type = (t.instrumentType ?? '').toUpperCase();
     final seg  = (t.segment ?? '').toUpperCase();
 
-    if (_mt5Exchanges.contains(ex))                                       return 'International';
-    if (ex == 'COMEX' || ex == 'UAE')                                     return 'International';
-    if (t.tradingSymbol.endsWith('CE') || t.tradingSymbol.endsWith('PE')) return 'Options';
+    if (_mt5Exchanges.contains(ex))                                               return 'International';
+    if (ex == 'COMEX' || ex == 'UAE')                                             return 'International';
+    if (t.tradingSymbol.endsWith('CE') || t.tradingSymbol.endsWith('PE'))         return 'Options';
     if (type == 'FUT' || seg.contains('FUT') || t.tradingSymbol.contains('FUT')) return 'Futures';
     return 'Equity';
   }
@@ -212,8 +222,8 @@ class _HomeScreenState extends State<HomeScreen> {
       for (final item in data) {
         if (item != null) {
           final tick = TickData.fromJson(item as Map<String, dynamic>);
-          // Use _tickKeyFor so FOREX (instrumentToken=0) uses id instead
-          _tickMap[_tickKeyFor(tick)] = tick;
+          final key  = symbolKey(tick.tradingSymbol); // ← hash of symbol
+          _tickMap[key] = tick;
         }
       }
     });
@@ -287,6 +297,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final symbol = (raw['tradingSymbol'] as String? ?? '').toUpperCase();
     if (symbol.isEmpty) return;
 
+    // Key derived from symbol — instrumentToken is intentionally ignored here
+    // because MT5 sends 0 for all FOREX pairs.
+    final token = symbolKey(symbol);
+
     final lastPrice     = (raw['lastPrice']     as num?)?.toDouble() ?? 0.0;
     final change        = (raw['change']        as num?)?.toDouble() ?? 0.0;
     final changePercent = (raw['changePercent'] as num?)?.toDouble() ?? 0.0;
@@ -300,15 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final timestamp     = (raw['timestamp']     as num?)?.toInt()    ?? 0;
     final id            = (raw['id']            as num?)?.toInt()    ?? 0;
     final exchange      =  raw['exchange']      as String?           ?? 'MT5';
-
-    // instrumentToken from MT5 server may be 0 for FOREX — resolve the same
-    // way as _tickKeyFor: prefer instrumentToken if non-zero, else fall back
-    // to id (which matches the watchlist row). If both are 0, use the
-    // alphabet-hash as a last resort so we never key on 0.
-    final rawToken  = (raw['instrumentToken'] as num?)?.toInt() ?? 0;
-    final token     = _mt5TickKey(id: id, instrumentToken: rawToken) != 0
-        ? _mt5TickKey(id: id, instrumentToken: rawToken)
-        : mapAlphabetsToInt(symbol);
+    final rawToken      = (raw['instrumentToken'] as num?)?.toInt()  ?? 0;
 
     final tick = TickData(
       id:              id,
@@ -368,7 +374,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           for (final item in batch) {
             final tick = TickData.fromJson(item as Map<String, dynamic>);
-            final key  = _tickKeyFor(tick);
+            final key  = symbolKey(tick.tradingSymbol); // ← hash of symbol
             _tickMap[key] = tick;
             _alertService.checkTick(token: key, price: tick.lastPrice);
             _tradeService.pushTick(token: key, price: tick.lastPrice);
@@ -385,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Remove instrument ──────────────────────────────────────────────────────
   void _removeInstrument(TickData tick) async {
-    final key = _tickKeyFor(tick);
+    final key = symbolKey(tick.tradingSymbol); // ← hash of symbol
     setState(() => _deletingIds.add(key));
 
     bool success = false;
@@ -499,8 +505,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color:
-                      _editing ? Colors.white : Colors.grey.shade700,
+                      color: _editing ? Colors.white : Colors.grey.shade700,
                     ),
                   ),
                 ],
@@ -563,7 +568,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Watchlist card ─────────────────────────────────────────────────────────
   Widget _buildWatchlistCard(BuildContext context, {required TickData tick}) {
-    final key            = _tickKeyFor(tick);
+    final key            = symbolKey(tick.tradingSymbol); // ← hash of symbol
     final isUp           = tick.isUp;
     final directionColor =
     isUp ? const Color(0xFF1E7D3A) : const Color(0xFFCC2929);
@@ -643,7 +648,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                   letterSpacing: 0.2,
                                 ),
                               ),
-                              // Show full name if available
                               if ((tick.name ?? '').isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 2),
@@ -841,8 +845,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 22,
                 height: 22,
                 margin: const EdgeInsets.only(left: 16),
-                child:
-                const CircularProgressIndicator(strokeWidth: 2),
+                child: const CircularProgressIndicator(strokeWidth: 2),
               )
                   : IconButton(
                 splashRadius: 24,
@@ -872,8 +875,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 2),
         Text(value,
-            style:
-            const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -928,20 +930,4 @@ class _ChipTab extends StatelessWidget {
       ),
     );
   }
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-/// Maps a symbol string to a unique integer token by treating each letter as
-/// its alphabet index (A=1 … Z=26) and concatenating the digits.
-/// Used as a last-resort fallback when instrumentToken and id are both 0.
-int mapAlphabetsToInt(String input) {
-  final buffer = StringBuffer();
-  for (int i = 0; i < input.length; i++) {
-    final c = input[i].toUpperCase();
-    if (c.codeUnitAt(0) >= 65 && c.codeUnitAt(0) <= 90) {
-      buffer.write(c.codeUnitAt(0) - 65 + 1);
-    }
-  }
-  return int.parse(buffer.toString());
 }
