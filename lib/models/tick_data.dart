@@ -1,6 +1,6 @@
 class TickData {
-  final int id;
-  int instrumentToken;
+  final int    id;
+  int          instrumentToken;
   final String tradingSymbol;
   final String exchange;
   final double lastPrice;
@@ -13,9 +13,20 @@ class TickData {
   final double volume;
   final double buyQuantity;
   final double sellQuantity;
-  final int timestamp;
+  final int    timestamp;
+
+  // ── New fields ─────────────────────────────────────────────────────────────
+  final String?  name;
+  final String?  instrumentType;
+  final String?  segment;
+  final String?  expiryDate;
+  final double?  strikePrice;
+  final double   tickSize;
+  final int      lotSize;
+  final int      exchangeToken;
 
   TickData({
+    required this.id,
     required this.instrumentToken,
     required this.tradingSymbol,
     required this.exchange,
@@ -30,28 +41,41 @@ class TickData {
     required this.buyQuantity,
     required this.sellQuantity,
     required this.timestamp,
-    required this.id,
+    this.name,
+    this.instrumentType,
+    this.segment,
+    this.expiryDate,
+    this.strikePrice,
+    this.tickSize    = 0.0,
+    this.lotSize     = 1,
+    this.exchangeToken = 0,
   });
 
-  factory TickData.fromJson(Map<String, dynamic> j) {
-    return TickData(
-      instrumentToken: (j['instrumentToken'] ?? 0) as int,
-      tradingSymbol: (j['tradingSymbol'] ?? '') as String,
-      exchange: ((j['exchange'] ?? j['segment'] ?? '') as String).toUpperCase(),
-      lastPrice: (j['lastPrice'] ?? 0).toDouble(),
-      change: (j['change'] ?? 0).toDouble(),
-      changePercent: (j['changePercent'] ?? 0).toDouble(),
-      open: (j['open'] ?? 0).toDouble(),
-      high: (j['high'] ?? 0).toDouble(),
-      low: (j['low'] ?? 0).toDouble(),
-      close: (j['close'] ?? 0).toDouble(),
-      volume: (j['volume'] ?? 0).toDouble(),
-      buyQuantity: (j['buyQuantity'] ?? 0).toDouble(),
-      sellQuantity: (j['sellQuantity'] ?? 0).toDouble(),
-      timestamp: (j['timestamp'] ?? 0) as int,
-      id: (j['id'] ?? 0) as int,
-    );
-  }
+  factory TickData.fromJson(Map<String, dynamic> j) => TickData(
+    id:              (j['id']              as num?)?.toInt()    ?? 0,
+    instrumentToken: (j['instrumentToken'] as num?)?.toInt()    ?? 0,
+    tradingSymbol:    j['tradingSymbol']   as String?           ?? '',
+    exchange:         j['exchange']        as String?           ?? '',
+    lastPrice:       (j['lastPrice']       as num?)?.toDouble() ?? 0.0,
+    change:          (j['change']          as num?)?.toDouble() ?? 0.0,
+    changePercent:   (j['changePercent']   as num?)?.toDouble() ?? 0.0,
+    open:            (j['open']            as num?)?.toDouble() ?? 0.0,
+    high:            (j['high']            as num?)?.toDouble() ?? 0.0,
+    low:             (j['low']             as num?)?.toDouble() ?? 0.0,
+    close:           (j['close']           as num?)?.toDouble() ?? 0.0,
+    volume:          (j['volume']          as num?)?.toDouble() ?? 0.0,
+    buyQuantity:     (j['buyQuantity']     as num?)?.toDouble() ?? 0.0,
+    sellQuantity:    (j['sellQuantity']    as num?)?.toDouble() ?? 0.0,
+    timestamp:       (j['timestamp']       as num?)?.toInt()    ?? 0,
+    name:             j['name']            as String?,
+    instrumentType:   j['instrumentType']  as String?,
+    segment:          j['segment']         as String?,
+    expiryDate:       j['expiryDate']      as String?,
+    strikePrice:     (j['strikePrice']     as num?)?.toDouble(),
+    tickSize:        (j['tickSize']        as num?)?.toDouble() ?? 0.0,
+    lotSize:         (j['lotSize']         as num?)?.toInt()    ?? 1,
+    exchangeToken:   (j['exchangeToken']   as num?)?.toInt()    ?? 0,
+  );
 
   bool get isUp => change >= 0;
 }

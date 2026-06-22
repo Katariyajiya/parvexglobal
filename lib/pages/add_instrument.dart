@@ -37,7 +37,7 @@ class _AddInstrumentState extends State<AddInstrument> {
     });
   }
 
-  final _tabs = const ["All", "NSE", "NFO", "MCX"];
+  final _tabs = const ["All", "NSE", "NFO", "MCX", "International"];
 
   late final List<_WatchItem> _items = [
     _WatchItem(

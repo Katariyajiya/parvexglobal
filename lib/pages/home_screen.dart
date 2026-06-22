@@ -7,34 +7,6 @@ import 'package:parvexglobal/alert/alert_banner.dart';
 import 'package:parvexglobal/alert/alert_service.dart';
 import 'package:parvexglobal/alert/alert_sound_service.dart';
 import 'package:parvexglobal/alert/set_alert_bottom_sheet.dart';
-import 'package:parvexglobal/extension/extension_functions.dart';
-import 'package:parvexglobal/models/tick_data.dart';
-import 'package:parvexglobal/pages/AlertHistoryScreen.dart';
-import 'package:parvexglobal/pages/trade_ledger_screen.dart';
-import 'package:parvexglobal/services/RestApiServices.dart';
-import 'package:parvexglobal/utils/ad_banner_widget.dart';
-import 'package:parvexglobal/utils/user_session.dart';
-import 'package:stomp_dart_client/stomp.dart';
-import 'package:stomp_dart_client/stomp_config.dart';
-import 'package:stomp_dart_client/stomp_frame.dart';
-import 'package:http/http.dart' as http;
-
-// import 'package:url_launcher/url_launcher.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
-
-import 'UserProfileScreen.dart';
-import 'add_instrument.dart';
-import 'instrument_detail.dart';
-import 'profile.dart';
-import 'dart:async';
-import 'dart:convert';
-
-import 'package:flutter/material.dart';
-import 'package:parvexglobal/alert/PriceAlert.dart';
-import 'package:parvexglobal/alert/alert_banner.dart';
-import 'package:parvexglobal/alert/alert_service.dart';
-import 'package:parvexglobal/alert/alert_sound_service.dart';
-import 'package:parvexglobal/alert/set_alert_bottom_sheet.dart';
 import 'package:parvexglobal/bottomsheet/add_trade_bottom_sheet.dart';
 import 'package:parvexglobal/extension/extension_functions.dart';
 import 'package:parvexglobal/models/tick_data.dart';
@@ -48,7 +20,6 @@ import 'package:stomp_dart_client/stomp.dart';
 import 'package:stomp_dart_client/stomp_config.dart';
 import 'package:stomp_dart_client/stomp_frame.dart';
 import 'package:http/http.dart' as http;
-
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'UserProfileScreen.dart';
@@ -57,9 +28,15 @@ import 'instrument_detail.dart';
 import 'profile.dart';
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const String _wsUrl = 'http://13.127.145.152:5001/ws';
-const String _baseUrl = 'http://13.127.145.152:5001';
-const String _intlWsUrl = 'ws://13.127.145.152:8000/ws/ticks';
+const String _wsUrl   = 'http://35.154.42.122:5001/ws';
+const String _baseUrl = 'http://35.154.42.122:5001';
+const String _mt5Host = '35.154.42.122';
+const int    _mt5Port = 8765;
+
+String _buildMt5WsUrl(List<String> symbols) {
+  final params = symbols.join(',');
+  return 'ws://$_mt5Host:$_mt5Port/?symbols=$params';
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -71,14 +48,37 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _tabs = const ["All", "Equity", "Futures", "Options", "International"];
 
-  int _selectedTab = 0;
-  bool _connected = false;
+  int  _selectedTab = 0;
+  bool _connected   = false;
   late String _userId;
-  WebSocketChannel? _intlCh;
-  StompClient? _stomp;
 
-  // latest tick by token
+  WebSocketChannel? _intlCh;
+  StompClient?      _stomp;
+
+  // ── MT5 exchange filter ────────────────────────────────────────────────────
+  // Symbols whose exchange matches this set are streamed via MT5 WebSocket.
+  // All other symbols are streamed via STOMP.
+  static const _mt5Exchanges = {'CRYPTO', 'FOREX', 'LSE', 'NYSE'};
+
+  // Active MT5 symbol list — kept in sync with the watchlist.
+  List<String> _intlSymbols = [];
+
+  // ── Tick map ───────────────────────────────────────────────────────────────
+  // IMPORTANT: FOREX symbols have instrumentToken = 0 in the server JSON.
+  // Using instrumentToken as the map key would collapse all FOREX entries to
+  // a single slot. Instead we use _tickKeyFor() which returns:
+  //   • instrumentToken  for non-MT5 symbols (always unique from the exchange)
+  //   • id               for MT5 symbols      (always unique in our DB)
   final Map<int, TickData> _tickMap = {};
+
+  /// Returns the map key to use for a given tick.
+  int _tickKeyFor(TickData t) =>
+      _mt5Exchanges.contains(t.exchange.toUpperCase()) ? t.id : t.instrumentToken;
+
+  /// Same logic but works directly on raw JSON fields, used in _handleMt5Tick
+  /// before a TickData object is fully constructed.
+  int _mt5TickKey({required int id, required int instrumentToken}) =>
+      instrumentToken != 0 ? instrumentToken : id;
 
   final api = RestApiService();
 
@@ -86,30 +86,40 @@ class _HomeScreenState extends State<HomeScreen> {
   final _alertService = AlertService.instance;
   final _soundService = AlertSoundService.instance;
 
-  // ── Trade service (NEW) ────────────────────────────────────────────────────
+  // ── Trade service ──────────────────────────────────────────────────────────
   final _tradeService = TradeService.instance;
 
+  // ── Edit mode ──────────────────────────────────────────────────────────────
+  bool           _editing    = false;
+  double         _editSlide  = 56;
+  final Set<int> _deletingIds = {};
+
+  // ──────────────────────────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
-
     _userId = UserSession.userId.toString();
-
-    // Wire up alert callback
     _alertService.onAlertFired = _onAlertFired;
 
-    WidgetsBinding.instance.addPostFrameCallback((duration) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _tickMap.clear();
       _checkForUpdate();
-      loadInitialData();
+      loadInitialData(); // MT5 connect happens inside after snapshot loads
       _connectStomp();
-      _connectIntl();
     });
   }
 
-  void _onAlertFiredTest() {
-    print("Testing Alert");
+  @override
+  void dispose() {
+    _stomp?.deactivate();
+    http.delete(Uri.parse('$_baseUrl/api/v1/watchlist/$_userId'));
+    _intlCh?.sink.close();
+    _soundService.dispose();
+    super.dispose();
   }
+
+  // ── Alert callbacks ────────────────────────────────────────────────────────
+  void _onAlertFiredTest() => debugPrint("Testing Alert");
 
   void _onAlertFired(PriceAlert alert) {
     if (!mounted) return;
@@ -119,21 +129,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Category classifier ────────────────────────────────────────────────────
   String _categoryOf(TickData t) {
-    final ex = (t.exchange ?? '').toUpperCase();
-    if (ex == 'COMEX' || ex == 'UAE' || ex == 'FOREX') return 'International';
+    final ex   = (t.exchange ?? '').toUpperCase();
+    final type = (t.instrumentType ?? '').toUpperCase();
+    final seg  = (t.segment ?? '').toUpperCase();
 
-    final type = (t.tradingSymbol ?? '').toUpperCase();
-    if (type.contains('FUT')) return 'Futures';
-    if (type.contains('OPT')) return 'Options';
-
-    final forex = (t.exchange ?? '').toUpperCase();
-    if (forex.contains('FOREX') || forex.contains('COMEX') || forex.contains('METALS')) return 'International';
-
-    if (t.tradingSymbol.endsWith('CE') || t.tradingSymbol.endsWith('PE')) {
-      return 'Options';
-    }
-    if (t.tradingSymbol.contains('FUT')) return 'Futures';
-
+    if (_mt5Exchanges.contains(ex))                                       return 'International';
+    if (ex == 'COMEX' || ex == 'UAE')                                     return 'International';
+    if (t.tradingSymbol.endsWith('CE') || t.tradingSymbol.endsWith('PE')) return 'Options';
+    if (type == 'FUT' || seg.contains('FUT') || t.tradingSymbol.contains('FUT')) return 'Futures';
     return 'Equity';
   }
 
@@ -143,22 +146,13 @@ class _HomeScreenState extends State<HomeScreen> {
     return _tickMap.values.where((t) => _categoryOf(t) == filter).toList();
   }
 
-  @override
-  void dispose() {
-    _stomp?.deactivate();
-    http.delete(Uri.parse('$_baseUrl/api/v1/watchlist/$_userId'));
-    _soundService.dispose();
-    super.dispose();
-  }
-
   // ── Update check ───────────────────────────────────────────────────────────
   void _checkForUpdate() async {
     final update = await api.fetchLatestAppUpdate(platform: 'ANDROID');
     if (update == null) return;
-
     if (!_isServerVersionNewer(update.version, "2.5.1")) return;
-
     if (!mounted) return;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -207,93 +201,143 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _launchDownload(String url) async {
-    final uri = Uri.parse(url);
-    // await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
-  // ── WebSocket: International ───────────────────────────────────────────────
-  void _connectIntl() {
-    _intlCh = WebSocketChannel.connect(Uri.parse(_intlWsUrl));
-    _intlCh!.stream
-        .listen(
-          (raw) {
-            if (raw is String && raw != "ping" && raw != "pong") {
-              final m = jsonDecode(raw) as Map<String, dynamic>;
-              final tick = TickData.fromJson(m);
-              if (tick.tradingSymbol.isNotEmpty) {
-                tick.instrumentToken = mapAlphabetsToInt(tick.tradingSymbol);
-
-                // ── Alert check ────────────────────────────────────────────
-                _alertService.checkTick(
-                  token: tick.instrumentToken,
-                  price: tick.lastPrice,
-                );
-
-                // ── Push live price to open trades (NEW) ───────────────────
-                _tradeService.pushTick(
-                  token: tick.instrumentToken,
-                  price: tick.lastPrice,
-                );
-
-                if (!mounted) return;
-                setState(() {
-                  _tickMap[tick.instrumentToken] = tick;
-                });
-              }
-            }
-          },
-          onError: (e) => debugPrint('Intl WS error: $e'),
-          onDone: () => debugPrint('Intl WS closed – reconnecting in 5 s'),
-        )
-        .onDone(() => Future.delayed(const Duration(seconds: 5), _connectIntl));
-  }
-
-  void subscribeSymbols() {
-    if (_intlCh == null) {
-      addLog("Connect socket first");
-      return;
-    }
-    final payload = {
-      "action": "subscribe",
-      "symbols": ["EURUSD", "XAUUSD", "GBPUSD"],
-    };
-    _intlCh!.sink.add(jsonEncode(payload));
-    addLog("Sent: ${jsonEncode(payload)}");
-  }
-
-  void disconnectSocket() {
-    _intlCh?.sink.close();
-    _intlCh = null;
-    setState(() => _connected = false);
-    addLog("Socket closed");
-  }
-
-  List<String> logs = [];
-
-  void addLog(String msg) {
-    final time = TimeOfDay.now().format(context);
-    setState(() => logs.insert(0, "[$time] $msg"));
+    // await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
   // ── Initial snapshot ───────────────────────────────────────────────────────
   void loadInitialData() async {
-    var data = await api.loadSnapshot();
+    final data = await api.loadSnapshot();
+
     setState(() {
       for (final item in data) {
         if (item != null) {
           final tick = TickData.fromJson(item as Map<String, dynamic>);
-          _tickMap[tick.instrumentToken] = tick;
+          // Use _tickKeyFor so FOREX (instrumentToken=0) uses id instead
+          _tickMap[_tickKeyFor(tick)] = tick;
         }
       }
     });
 
-    // After snapshot, push all known prices into TradeService so open trades
-    // get their live price set immediately (before the next STOMP tick).
+    // Push all known prices to the trade service
     final priceMap = <int, double>{};
-    for (final tick in _tickMap.values) {
-      priceMap[tick.instrumentToken] = tick.lastPrice;
+    for (final entry in _tickMap.entries) {
+      priceMap[entry.key] = entry.value.lastPrice;
     }
     _tradeService.pushTickMap(priceMap);
+
+    // ── Auto-connect MT5 for FOREX / CRYPTO / LSE / NYSE symbols ────────────
+    final mt5Symbols = _tickMap.values
+        .where((t) => _mt5Exchanges.contains(t.exchange.toUpperCase()))
+        .map((t) => t.tradingSymbol)
+        .toSet()
+        .toList();
+
+    if (mt5Symbols.isNotEmpty) {
+      debugPrint('[MT5] Auto-connecting for symbols: $mt5Symbols');
+      _updateIntlSymbols(mt5Symbols);
+    } else {
+      debugPrint('[MT5] No MT5 symbols in watchlist — skipping connection');
+    }
+  }
+
+  // ── MT5 WebSocket ──────────────────────────────────────────────────────────
+  void _connectIntl(List<String> symbols) {
+    _intlCh?.sink.close();
+    _intlCh = null;
+
+    if (symbols.isEmpty) return;
+
+    final url = _buildMt5WsUrl(symbols);
+    debugPrint('[MT5] Connecting: $url');
+
+    _intlCh = WebSocketChannel.connect(Uri.parse(url));
+
+    _intlCh!.stream.listen(
+          (raw) {
+        if (raw is! String) return;
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded is Map && decoded.containsKey('error')) {
+            debugPrint('[MT5] Server error: ${decoded['error']}');
+            return;
+          }
+          if (decoded is List) {
+            for (final item in decoded) {
+              _handleMt5Tick(item as Map<String, dynamic>);
+            }
+          }
+        } catch (e) {
+          debugPrint('[MT5] Parse error: $e');
+        }
+      },
+      onError: (e) => debugPrint('[MT5] WS error: $e'),
+      onDone: () {
+        debugPrint('[MT5] WS closed — reconnecting in 5s');
+        Future.delayed(const Duration(seconds: 5), () {
+          if (mounted) _connectIntl(_intlSymbols);
+        });
+      },
+      cancelOnError: false,
+    );
+  }
+
+  void _handleMt5Tick(Map<String, dynamic> raw) {
+    debugPrint('[MT5] Tick: $raw');
+
+    final symbol = (raw['tradingSymbol'] as String? ?? '').toUpperCase();
+    if (symbol.isEmpty) return;
+
+    final lastPrice     = (raw['lastPrice']     as num?)?.toDouble() ?? 0.0;
+    final change        = (raw['change']        as num?)?.toDouble() ?? 0.0;
+    final changePercent = (raw['changePercent'] as num?)?.toDouble() ?? 0.0;
+    final open          = (raw['open']          as num?)?.toDouble() ?? lastPrice;
+    final high          = (raw['high']          as num?)?.toDouble() ?? lastPrice;
+    final low           = (raw['low']           as num?)?.toDouble() ?? lastPrice;
+    final close         = (raw['close']         as num?)?.toDouble() ?? lastPrice;
+    final volume        = (raw['volume']        as num?)?.toDouble() ?? 0.0;
+    final buyQuantity   = (raw['buyQuantity']   as num?)?.toDouble() ?? 0.0;
+    final sellQuantity  = (raw['sellQuantity']  as num?)?.toDouble() ?? 0.0;
+    final timestamp     = (raw['timestamp']     as num?)?.toInt()    ?? 0;
+    final id            = (raw['id']            as num?)?.toInt()    ?? 0;
+    final exchange      =  raw['exchange']      as String?           ?? 'MT5';
+
+    // instrumentToken from MT5 server may be 0 for FOREX — resolve the same
+    // way as _tickKeyFor: prefer instrumentToken if non-zero, else fall back
+    // to id (which matches the watchlist row). If both are 0, use the
+    // alphabet-hash as a last resort so we never key on 0.
+    final rawToken  = (raw['instrumentToken'] as num?)?.toInt() ?? 0;
+    final token     = _mt5TickKey(id: id, instrumentToken: rawToken) != 0
+        ? _mt5TickKey(id: id, instrumentToken: rawToken)
+        : mapAlphabetsToInt(symbol);
+
+    final tick = TickData(
+      id:              id,
+      instrumentToken: rawToken,
+      tradingSymbol:   symbol,
+      exchange:        exchange,
+      lastPrice:       lastPrice,
+      change:          change,
+      changePercent:   changePercent,
+      open:            open,
+      high:            high,
+      low:             low,
+      close:           close,
+      volume:          volume,
+      buyQuantity:     buyQuantity,
+      sellQuantity:    sellQuantity,
+      timestamp:       timestamp,
+    );
+
+    _alertService.checkTick(token: token, price: lastPrice);
+    _tradeService.pushTick(token: token, price: lastPrice);
+
+    if (!mounted) return;
+    setState(() => _tickMap[token] = tick);
+  }
+
+  void _updateIntlSymbols(List<String> symbols) {
+    setState(() => _intlSymbols = symbols);
+    _connectIntl(symbols);
   }
 
   // ── STOMP ──────────────────────────────────────────────────────────────────
@@ -313,43 +357,65 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onConnect(StompFrame frame) {
-    debugPrint('WebSocket connected');
+    debugPrint('STOMP connected');
     setState(() => _connected = true);
 
     _stomp!.subscribe(
       destination: '/topic/watchlist/$_userId',
       callback: (frame) {
         if (frame.body == null) return;
-
         final List batch = jsonDecode(frame.body!);
-
         setState(() {
           for (final item in batch) {
             final tick = TickData.fromJson(item as Map<String, dynamic>);
-            _tickMap[tick.instrumentToken] = tick;
-
-            // ── Alert check ──────────────────────────────────────────────
-            _alertService.checkTick(
-              token: tick.instrumentToken,
-              price: tick.lastPrice,
-            );
-
-            // ── Push live price to open trades (NEW) ─────────────────────
-            _tradeService.pushTick(
-              token: tick.instrumentToken,
-              price: tick.lastPrice,
-            );
+            final key  = _tickKeyFor(tick);
+            _tickMap[key] = tick;
+            _alertService.checkTick(token: key, price: tick.lastPrice);
+            _tradeService.pushTick(token: key, price: tick.lastPrice);
           }
         });
       },
     );
   }
 
-  bool _editing = false;
-
   void _onDisconnect(StompFrame frame) {
-    debugPrint('WebSocket disconnected');
+    debugPrint('STOMP disconnected');
     setState(() => _connected = false);
+  }
+
+  // ── Remove instrument ──────────────────────────────────────────────────────
+  void _removeInstrument(TickData tick) async {
+    final key = _tickKeyFor(tick);
+    setState(() => _deletingIds.add(key));
+
+    bool success = false;
+    try {
+      success = await api
+          .removeFromWatchlist(instrumentId: tick.id)
+          .timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      // treat timeout as failure
+    }
+
+    if (success) {
+      setState(() {
+        _tickMap.remove(key);
+        _deletingIds.remove(key);
+        _alertService.removeAllForToken(key);
+
+        if (_mt5Exchanges.contains(tick.exchange.toUpperCase())) {
+          final sym = tick.tradingSymbol.toUpperCase();
+          _updateIntlSymbols(_intlSymbols.where((s) => s != sym).toList());
+        }
+      });
+    } else {
+      setState(() => _deletingIds.remove(key));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to remove item')),
+        );
+      }
+    }
   }
 
   // ── Build ──────────────────────────────────────────────────────────────────
@@ -368,362 +434,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  double _editSlide = 56;
-
-  // ── Watchlist card ─────────────────────────────────────────────────────────
-  Widget _buildWatchlistCard(BuildContext context, {required TickData tick}) {
-    final isUp = tick.isUp;
-    final directionColor = isUp ? const Color(0xFF1E7D3A) : const Color(0xFFCC2929);
-    final pillBgColor = isUp ? const Color(0xFFD6F3E0) : const Color(0xFFF9D6D6);
-    final pillTextColor = isUp ? const Color(0xFF1A6E33) : const Color(0xFFB82323);
-    final directionIcon = isUp ? Icons.trending_up : Icons.trending_down_outlined;
-
-    // Does this instrument have any active alert?
-    final hasAlert = _alertService.alertsForToken(tick.instrumentToken).any((a) => !a.triggered);
-
-    return Stack(
-      children: [
-        // ── Card ──────────────────────────────────────────────────────────
-        AnimatedSlide(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOut,
-          offset: _editing ? Offset(1, 0) * (_editSlide / MediaQuery.of(context).size.width) : Offset.zero,
-          child: GestureDetector(
-            onLongPress: () => SetAlertBottomSheet.show(
-              context,
-              instrumentToken: tick.instrumentToken,
-              symbol: tick.tradingSymbol,
-              currentPrice: tick.lastPrice,
-            ),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: isUp ? const Color(0xFFB2DFBE) : const Color(0xFFF1B8B8),
-                  width: 0.8,
-                ),
-                gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  stops: const [0.0, 0.08, 0.3, 0.5, 0.7, 0.92, 1.0],
-                  colors: [
-                    directionColor.withOpacity(0.12),
-                    directionColor.withOpacity(0.10),
-                    directionColor.withOpacity(0.00),
-                    directionColor.withOpacity(0.0),
-                    directionColor.withOpacity(0.00),
-                    directionColor.withOpacity(0.10),
-                    directionColor.withOpacity(0.12),
-                  ],
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                child: Column(
-                  children: [
-                    // ── Top row ────────────────────────────────────────────
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const SizedBox(width: 4),
-
-                        // Symbol name + action buttons
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                tick.tradingSymbol,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  // ── Set Alert button ───────────────────
-                                  InkWell(
-                                    onTap: () => SetAlertBottomSheet.show(
-                                      context,
-                                      instrumentToken: tick.instrumentToken,
-                                      symbol: tick.tradingSymbol,
-                                      currentPrice: tick.lastPrice,
-                                    ),
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(6),
-                                        color: hasAlert ? const Color(0xFF1F63FF).withOpacity(0.08) : Colors.grey.shade100,
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            hasAlert ? Icons.notifications_active : Icons.notifications_none,
-                                            size: 16,
-                                            color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade500,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            "Set Alert",
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                              color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-
-                                  const SizedBox(width: 8),
-
-                                  // ── Add Trade button (NEW) ─────────────
-                                  InkWell(
-                                    onTap: () => AddTradeBottomSheet.show(
-                                      context,
-                                      symbol: tick.tradingSymbol,
-                                      instrumentToken: tick.instrumentToken,
-                                      currentPrice: tick.lastPrice,
-                                    ),
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(6),
-                                        color: const Color(0xFF7C4DFF).withOpacity(0.08),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const Icon(
-                                            Icons.add_chart,
-                                            size: 16,
-                                            color: Color(0xFF7C4DFF),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          const Text(
-                                            "Add Trade",
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF7C4DFF),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Price + direction column
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '₹${tick.lastPrice.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 0.1,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                  decoration: BoxDecoration(
-                                    color: pillBgColor,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(directionIcon, size: 14, color: directionColor),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        '${tick.changePercent.toStringAsFixed(2)}%',
-                                        style: TextStyle(
-                                          color: pillTextColor,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${tick.change.toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    color: pillTextColor,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(width: 6),
-                      ],
-                    ),
-
-                    const SizedBox(height: 10),
-                    Divider(
-                      height: 1,
-                      thickness: 0.6,
-                      color: Colors.grey.shade200,
-                    ),
-                    const SizedBox(height: 8),
-
-                    // ── Bottom row ─────────────────────────────────────────
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildDetailItem('Prev close', '${tick.close.toStringAsFixed(2)}'),
-                        _buildDetailItem('Open', '${tick.open.toStringAsFixed(2)}'),
-                        _buildDetailItem(
-                          'H / L',
-                          '${tick.high.toStringAsFixed(2)} / ${tick.low.toStringAsFixed(2)}',
-                          alignEnd: true,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-
-        // ── Delete button (edit mode) ────────────────────────────────────
-        if (_editing)
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: Center(
-              child: _deletingIds.contains(tick.instrumentToken)
-                  ? Container(
-                      width: 22,
-                      height: 22,
-                      margin: const EdgeInsets.only(left: 16.0),
-                      child: const CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : IconButton(
-                      splashRadius: 24,
-                      icon: const Icon(Icons.remove_circle, color: Colors.red, size: 28),
-                      onPressed: () => _removeInstrument(tick),
-                    ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  // ── Detail label + value column ────────────────────────────────────────────
-  Widget _buildDetailItem(String label, String value, {bool alignEnd = false}) {
-    return Column(
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: Colors.grey.shade500,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ── AppBar ──────────────────────────────────────────────────────────────────
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      backgroundColor: Colors.white,
-      elevation: 0,
-      title: RichText(
-        text: const TextSpan(
-          text: 'Bhav',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 20),
-          children: [
-            TextSpan(
-              text: 'Tav',
-              style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 20),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
-          child: Row(
-            children: [
-              Icon(Icons.circle, size: 9, color: _connected ? Colors.green : Colors.grey),
-              const SizedBox(width: 4),
-              Text(_connected ? 'Live' : '...', style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            ],
-          ),
-        ),
-        _buildAppBarAction(
-          Icons.search,
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddInstrument())),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(right: 16, left: 8),
-          child: const CircleAvatar(
-            backgroundColor: Color(0xFF2979FF),
-            child: Icon(Icons.person, color: Colors.white, size: 20),
-          ),
-        ).onClick(
-          () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(right: 16, left: 8),
-          child: const CircleAvatar(
-            backgroundColor: Color(0xFFFF3264),
-            child: Icon(Icons.notifications, color: Colors.white, size: 20),
-          ),
-        ).onClick(() => Navigator.push(context, MaterialPageRoute(builder: (_) => const TradeLedgerScreen()))),
-      ],
-    );
-  }
-
   // ── Watchlist header ───────────────────────────────────────────────────────
   Widget _buildWatchlistHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 0, 0),
       child: Row(
         children: [
-          const Text('My WatchList', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)).onClick(() {
-            _onAlertFiredTest();
-          }),
+          const Text(
+            'My WatchList',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ).onClick(_onAlertFiredTest),
           const Spacer(),
-
-          // + Add button
           InkWell(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddInstrument())),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AddInstrument()),
+            ),
             borderRadius: BorderRadius.circular(6),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -731,27 +457,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(6),
                 color: const Color(0xFF1F63FF).withOpacity(0.08),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
+                children: [
                   Icon(Icons.add, size: 16, color: Color(0xFF1F63FF)),
                   SizedBox(width: 4),
                   Text(
                     "Add",
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1F63FF),
-                    ),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1F63FF)),
                   ),
                 ],
               ),
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // Edit / Done button
           InkWell(
             onTap: () => setState(() => _editing = !_editing),
             borderRadius: BorderRadius.circular(6),
@@ -759,7 +481,9 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
-                color: _editing ? const Color(0xFF1F63FF) : Colors.grey.shade100,
+                color: _editing
+                    ? const Color(0xFF1F63FF)
+                    : Colors.grey.shade100,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -775,7 +499,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: _editing ? Colors.white : Colors.grey.shade700,
+                      color:
+                      _editing ? Colors.white : Colors.grey.shade700,
                     ),
                   ),
                 ],
@@ -787,8 +512,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  final Set<int> _deletingIds = {};
 
   // ── Tab bar ────────────────────────────────────────────────────────────────
   Widget _buildTabBar() {
@@ -814,81 +537,376 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Tick list ──────────────────────────────────────────────────────────────
   Widget _buildTickList() {
     if (_tickMap.isEmpty) {
-      return const Expanded(child: Center(child: CircularProgressIndicator()));
+      return const Expanded(
+        child: Center(child: CircularProgressIndicator()),
+      );
     }
-
     final visibleTicks = _getVisibleTicks();
-
     if (visibleTicks.isEmpty) {
       return const Expanded(
         child: Center(
-          child: Text('No instruments found for this filter', style: TextStyle(color: Colors.grey)),
+          child: Text(
+            'No instruments found for this filter',
+            style: TextStyle(color: Colors.grey),
+          ),
         ),
       );
     }
-
     return Expanded(
       child: ListView.builder(
         itemCount: visibleTicks.length,
-        itemBuilder: (context, index) {
-          final tick = visibleTicks[index];
-          return _buildWatchlistCard(context, tick: tick);
-        },
+        itemBuilder: (context, index) =>
+            _buildWatchlistCard(context, tick: visibleTicks[index]),
       ),
     );
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
+  // ── Watchlist card ─────────────────────────────────────────────────────────
+  Widget _buildWatchlistCard(BuildContext context, {required TickData tick}) {
+    final key            = _tickKeyFor(tick);
+    final isUp           = tick.isUp;
+    final directionColor =
+    isUp ? const Color(0xFF1E7D3A) : const Color(0xFFCC2929);
+    final pillBgColor    =
+    isUp ? const Color(0xFFD6F3E0) : const Color(0xFFF9D6D6);
+    final pillTextColor  =
+    isUp ? const Color(0xFF1A6E33) : const Color(0xFFB82323);
+    final directionIcon  =
+    isUp ? Icons.trending_up : Icons.trending_down_outlined;
+    final hasAlert =
+    _alertService.alertsForToken(key).any((a) => !a.triggered);
+
+    // Decide decimal precision: FOREX uses 5dp, everything else 2dp
+    final isMt5    = _mt5Exchanges.contains(tick.exchange.toUpperCase());
+    final priceFmt = isMt5
+        ? tick.lastPrice.toStringAsFixed(5)
+        : '₹${tick.lastPrice.toStringAsFixed(2)}';
+
+    return Stack(
+      children: [
+        AnimatedSlide(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          offset: _editing
+              ? Offset(1, 0) * (_editSlide / MediaQuery.of(context).size.width)
+              : Offset.zero,
+          child: GestureDetector(
+            onLongPress: () => SetAlertBottomSheet.show(
+              context,
+              instrumentToken: key,
+              symbol: tick.tradingSymbol,
+              currentPrice: tick.lastPrice,
+            ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isUp
+                      ? const Color(0xFFB2DFBE)
+                      : const Color(0xFFF1B8B8),
+                  width: 0.8,
+                ),
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  stops: const [0.0, 0.08, 0.3, 0.5, 0.7, 0.92, 1.0],
+                  colors: [
+                    directionColor.withOpacity(0.12),
+                    directionColor.withOpacity(0.10),
+                    directionColor.withOpacity(0.00),
+                    directionColor.withOpacity(0.00),
+                    directionColor.withOpacity(0.00),
+                    directionColor.withOpacity(0.10),
+                    directionColor.withOpacity(0.12),
+                  ],
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                child: Column(
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        const SizedBox(width: 4),
+                        // ── Symbol + name + action buttons ───────────────
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                tick.tradingSymbol,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                              // Show full name if available
+                              if ((tick.name ?? '').isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    tick.name!,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade500,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  // Set Alert
+                                  InkWell(
+                                    onTap: () => SetAlertBottomSheet.show(
+                                      context,
+                                      instrumentToken: key,
+                                      symbol: tick.tradingSymbol,
+                                      currentPrice: tick.lastPrice,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(6),
+                                        color: hasAlert
+                                            ? const Color(0xFF1F63FF)
+                                            .withOpacity(0.08)
+                                            : Colors.grey.shade100,
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            hasAlert
+                                                ? Icons.notifications_active
+                                                : Icons.notifications_none,
+                                            size: 16,
+                                            color: hasAlert
+                                                ? const Color(0xFF1F63FF)
+                                                : Colors.grey.shade500,
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            "Set Alert",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                              color: hasAlert
+                                                  ? const Color(0xFF1F63FF)
+                                                  : Colors.grey.shade600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Add Trade
+                                  InkWell(
+                                    onTap: () => AddTradeBottomSheet.show(
+                                      context,
+                                      symbol: tick.tradingSymbol,
+                                      instrumentToken: key,
+                                      currentPrice: tick.lastPrice,
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 7, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(6),
+                                        color: const Color(0xFF7C4DFF)
+                                            .withOpacity(0.08),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.add_chart,
+                                              size: 16,
+                                              color: Color(0xFF7C4DFF)),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            "Add Trade",
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF7C4DFF),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        // ── Price + change pill ──────────────────────────
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              priceFmt,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: pillBgColor,
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(directionIcon,
+                                          size: 14, color: directionColor),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        '${tick.changePercent.toStringAsFixed(2)}%',
+                                        style: TextStyle(
+                                          color: pillTextColor,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  tick.change.toStringAsFixed(2),
+                                  style: TextStyle(
+                                    color: pillTextColor,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Divider(
+                        height: 1,
+                        thickness: 0.6,
+                        color: Colors.grey.shade200),
+                    const SizedBox(height: 8),
+                    // ── OHLC row ─────────────────────────────────────────
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildDetailItem(
+                            'Prev close', tick.close.toStringAsFixed(2)),
+                        _buildDetailItem(
+                            'Open', tick.open.toStringAsFixed(2)),
+                        _buildDetailItem(
+                          'H / L',
+                          '${tick.high.toStringAsFixed(2)} / ${tick.low.toStringAsFixed(2)}',
+                          alignEnd: true,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        // ── Delete button (edit mode) ──────────────────────────────────────
+        if (_editing)
+          Positioned(
+            left: 0, top: 0, bottom: 0,
+            child: Center(
+              child: _deletingIds.contains(key)
+                  ? Container(
+                width: 22,
+                height: 22,
+                margin: const EdgeInsets.only(left: 16),
+                child:
+                const CircularProgressIndicator(strokeWidth: 2),
+              )
+                  : IconButton(
+                splashRadius: 24,
+                icon: const Icon(Icons.remove_circle,
+                    color: Colors.red, size: 28),
+                onPressed: () => _removeInstrument(tick),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── Detail item ────────────────────────────────────────────────────────────
+  Widget _buildDetailItem(String label, String value,
+      {bool alignEnd = false}) {
+    return Column(
+      crossAxisAlignment:
+      alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+              fontSize: 11,
+              color: Colors.grey.shade500,
+              fontWeight: FontWeight.w400),
+        ),
+        const SizedBox(height: 2),
+        Text(value,
+            style:
+            const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
   Widget _buildAppBarAction(IconData icon, VoidCallback onTap) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
+      decoration:
+      BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
       child: IconButton(
-        icon: Icon(icon, color: Colors.black54, size: 20),
-        onPressed: onTap,
-      ),
+          icon: Icon(icon, color: Colors.black54, size: 20),
+          onPressed: onTap),
     );
-  }
-
-  void _removeInstrument(TickData tick) async {
-    final token = tick.instrumentToken;
-    setState(() => _deletingIds.add(token));
-
-    bool success = false;
-    try {
-      success = await api.removeFromWatchlist(instrumentId: tick.id).timeout(const Duration(seconds: 20));
-    } on TimeoutException {
-      // treat timeout as failure
-    }
-
-    if (success) {
-      setState(() {
-        _tickMap.remove(token);
-        _deletingIds.remove(token);
-        _alertService.removeAllForToken(token);
-      });
-    } else {
-      setState(() => _deletingIds.remove(token));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to remove item')),
-      );
-    }
   }
 }
 
 // ── _ChipTab ──────────────────────────────────────────────────────────────────
 class _ChipTab extends StatelessWidget {
-  const _ChipTab({required this.label, required this.selected, required this.onTap});
+  const _ChipTab(
+      {required this.label,
+        required this.selected,
+        required this.onTap});
 
-  final String label;
-  final bool selected;
+  final String       label;
+  final bool         selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bg = selected ? const Color(0xFF1F63FF) : Colors.white;
-    final fg = selected ? Colors.white : const Color(0xFF55657C);
-    final border = selected ? const Color(0xFF1F63FF) : const Color(0xFFDEE6F1);
+    final bg     = selected ? const Color(0xFF1F63FF) : Colors.white;
+    final fg     = selected ? Colors.white : const Color(0xFF55657C);
+    final border =
+    selected ? const Color(0xFF1F63FF) : const Color(0xFFDEE6F1);
 
     return InkWell(
       borderRadius: BorderRadius.circular(4),
@@ -903,7 +921,8 @@ class _ChipTab extends StatelessWidget {
         child: Center(
           child: Text(
             label,
-            style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 12),
+            style: TextStyle(
+                color: fg, fontWeight: FontWeight.w800, fontSize: 12),
           ),
         ),
       ),
@@ -912,6 +931,10 @@ class _ChipTab extends StatelessWidget {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Maps a symbol string to a unique integer token by treating each letter as
+/// its alphabet index (A=1 … Z=26) and concatenating the digits.
+/// Used as a last-resort fallback when instrumentToken and id are both 0.
 int mapAlphabetsToInt(String input) {
   final buffer = StringBuffer();
   for (int i = 0; i < input.length; i++) {

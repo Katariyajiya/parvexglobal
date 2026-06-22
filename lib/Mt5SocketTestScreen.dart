@@ -11,7 +11,7 @@ class Mt5SocketTestScreen extends StatefulWidget {
 
 class _Mt5SocketTestScreenState extends State<Mt5SocketTestScreen> {
 
-  final String socketUrl = "ws://13.127.145.152:8000/ws/ticks";
+  final String socketUrl = "ws://35.154.42.122:8000/ws/ticks";
 
   WebSocketChannel? channel;
 

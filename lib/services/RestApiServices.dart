@@ -22,7 +22,7 @@ import 'package:dio/dio.dart';
 class RestApiService {
   static final Dio dio = Dio(
       BaseOptions(
-        baseUrl: "http://13.127.145.152:5001", // update if needed
+        baseUrl: "http://35.154.42.122:5001", // update if needed
         connectTimeout: const Duration(seconds: 60),
         receiveTimeout: const Duration(seconds: 60),
         headers: {"Content-Type": "application/json"},
