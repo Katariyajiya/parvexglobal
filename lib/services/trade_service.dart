@@ -1,9 +1,19 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+// ── Symbol key (mirrors home_screen.dart) ─────────────────────────────────────
+// djb2 hash of the uppercased symbol string → stable positive int.
+// Used as the tick token for MT5/FOREX symbols because they always send
+// instrumentToken = 0, so we cannot rely on the raw numeric ID to match.
+int _symbolKey(String symbol) {
+  final s = symbol.toUpperCase();
+  int hash = 5381;
+  for (final c in s.codeUnits) {
+    hash = ((hash << 5) + hash) ^ c;
+  }
+  return hash.abs() & 0x7FFFFFFF;
+}
 
 // ── Trade model ───────────────────────────────────────────────────────────────
 
@@ -178,12 +188,19 @@ class TradeService extends ChangeNotifier {
 
   // ── Live price feed ────────────────────────────────────────────────────────
   // Called by HomeScreen every time a tick arrives.
-  // Updates livePrice on every open trade with a matching instrumentToken.
+  //
+  // HomeScreen always calls pushTick with token = symbolKey(tradingSymbol).
+  // For Indian instruments the Trade also stores that same hash as
+  // instrumentToken (set at add-trade time from the tick card).
+  // For MT5/FOREX instruments the Trade stores the raw MT5 numeric ID as
+  // instrumentToken, which is DIFFERENT from symbolKey — so we also
+  // compare against _symbolKey(t.symbol) as a fallback to guarantee a match.
 
   void pushTick({required int token, required double price}) {
     bool changed = false;
     for (final t in _trades) {
-      if (!t.isClosed && t.instrumentToken == token) {
+      if (!t.isClosed &&
+          (t.instrumentToken == token || _symbolKey(t.symbol) == token)) {
         t.livePrice = price;
         changed = true;
       }
@@ -192,12 +209,23 @@ class TradeService extends ChangeNotifier {
   }
 
   // Bulk update from initial snapshot (called once on load).
+  // priceMap keys are symbolKey(tradingSymbol) — same dual-match logic applies.
   void pushTickMap(Map<int, double> priceMap) {
     bool changed = false;
     for (final t in _trades) {
-      if (!t.isClosed && priceMap.containsKey(t.instrumentToken)) {
+      if (t.isClosed) continue;
+      // Try instrumentToken first (fast path for Indian instruments).
+      if (priceMap.containsKey(t.instrumentToken)) {
         t.livePrice = priceMap[t.instrumentToken]!;
         changed = true;
+      } else {
+        // Fallback: match via _symbolKey — covers MT5/FOREX trades where the
+        // stored instrumentToken is a raw MT5 ID, not the symbolKey hash.
+        final sk = _symbolKey(t.symbol);
+        if (priceMap.containsKey(sk)) {
+          t.livePrice = priceMap[sk]!;
+          changed = true;
+        }
       }
     }
     if (changed) notifyListeners();

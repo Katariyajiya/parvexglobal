@@ -4,11 +4,25 @@ import 'package:flutter/material.dart';
 
 import '../helper/bottom_navigation_bar.dart';
 import '../models/search_instrument_model.dart';
+import '../models/tick_data.dart';
 import '../services/RestApiServices.dart';
 import '../utils/user_session.dart';
 
 class AddInstrument extends StatefulWidget {
-  const AddInstrument({super.key});
+  const AddInstrument({
+    super.key,
+    this.onInstrumentAdded,
+    this.onInstrumentRemoved,
+  });
+
+  /// Called when an instrument is successfully added to the watchlist.
+  /// Provides the [SearchInstrumentModel] so HomeScreen can immediately
+  /// add it to the tick map and connect the right socket.
+  final void Function(SearchInstrumentModel instrument)? onInstrumentAdded;
+
+  /// Called when an instrument is removed from the watchlist so HomeScreen
+  /// can remove it from the tick map immediately.
+  final void Function(SearchInstrumentModel instrument)? onInstrumentRemoved;
 
   @override
   State<AddInstrument> createState() => _AddInstrumentState();
@@ -247,75 +261,86 @@ class _AddInstrumentState extends State<AddInstrument> {
             // List
             Expanded(
               child:
-                  isLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : searchResults.isEmpty
-                      ? const Center(child: Text("No results found"))
-                      : ListView.separated(
-                        itemCount: searchResults.length,
-                        separatorBuilder: (_, __) => const Divider(),
-                        itemBuilder: (context, i) {
-                          final item = searchResults[i];
+              isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : searchResults.isEmpty
+                  ? const Center(child: Text("No results found"))
+                  : ListView.separated(
+                itemCount: searchResults.length,
+                separatorBuilder: (_, __) => const Divider(),
+                itemBuilder: (context, i) {
+                  final item = searchResults[i];
 
-                          print(searchResults[i]);
+                  print(searchResults[i]);
 
-                          return ListTile(
-                            title: Text(item.name),
-                            subtitle: Text("${item.exchange} • ${item.symbol}"),
-                            trailing:
-                                item.isLoading
-                                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                    : IconButton(
-                                      icon: Icon(item.subscription ? Icons.close : Icons.add, color: item.subscription ? Colors.red : Colors.green),
-                                      onPressed: () async {
-                                        final api = RestApiService();
+                  return ListTile(
+                    title: Text(item.name),
+                    subtitle: Text("${item.exchange} • ${item.symbol}"),
+                    trailing:
+                    item.isLoading
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        : IconButton(
+                      icon: Icon(item.subscription ? Icons.close : Icons.add, color: item.subscription ? Colors.red : Colors.green),
+                      onPressed: () async {
+                        final api = RestApiService();
 
-                                        setState(() {
-                                          item.isLoading = true;
-                                        });
+                        setState(() {
+                          item.isLoading = true;
+                        });
 
-                                        try {
-                                          if (item.subscription) {
-                                            /// REMOVE
-                                            final success = await api.removeFromWatchlist(instrumentId: item.instrumentId);
+                        try {
+                          if (item.subscription) {
+                            /// REMOVE
+                            final success = await api.removeFromWatchlist(instrumentId: item.instrumentId);
 
-                                            if (success) {
-                                              item.subscription = false;
+                            if (success) {
+                              item.subscription = false;
 
-                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Removed from Watchlist"), duration: Duration(seconds: 1)));
-                                               searchInstrument(_lastQuery);
-                                            }
-                                          } else {
-                                            /// ADD
-                                            print(item.instrumentId);
-                                            print("addition requested");
-                                            final success = await api.addToWatchlist(instrumentId: item.instrumentId);
+                              // Notify HomeScreen to remove from tick map / socket
+                              widget.onInstrumentRemoved?.call(item);
 
-                                            if (success) {
-                                              item.subscription = true;
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Removed from Watchlist"), duration: Duration(seconds: 1)));
+                              searchInstrument(_lastQuery);
+                            }
+                          } else {
+                            /// ADD
+                            print(item.instrumentId);
+                            print("addition requested");
+                            final success = await api.addToWatchlist(instrumentId: item.instrumentId);
 
-                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Added to Watchlist"), duration: Duration(seconds: 1)));
-                                            } else {
-                                              /// Handle duplicate case (your API bug)
-                                              item.subscription = true;
+                            if (success) {
+                              item.subscription = true;
 
-                                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Already in Watchlist")));
-                                            }
-                                          }
-                                        } catch (e) {
-                                          print(e);
+                              // Notify HomeScreen immediately so it can update the
+                              // tick map and connect the correct socket right away.
+                              widget.onInstrumentAdded?.call(item);
 
-                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Something went wrong")));
-                                        } finally {
-                                          setState(() {
-                                            item.isLoading = false;
-                                          });
-                                        }
-                                      },
-                                    ),
-                          );
-                        },
-                      ),
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Added to Watchlist"), duration: Duration(seconds: 1)));
+                            } else {
+                              /// Handle duplicate case (your API bug)
+                              item.subscription = true;
+
+                              // Still notify — it's already in the watchlist,
+                              // so HomeScreen should show it.
+                              widget.onInstrumentAdded?.call(item);
+
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Already in Watchlist")));
+                            }
+                          }
+                        } catch (e) {
+                          print(e);
+
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Something went wrong")));
+                        } finally {
+                          setState(() {
+                            item.isLoading = false;
+                          });
+                        }
+                      },
+                    ),
+                  );
+                },
+              ),
             ),
           ],
         ),

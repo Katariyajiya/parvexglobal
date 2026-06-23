@@ -10,6 +10,7 @@ import 'package:parvexglobal/alert/set_alert_bottom_sheet.dart';
 import 'package:parvexglobal/bottomsheet/add_trade_bottom_sheet.dart';
 import 'package:parvexglobal/extension/extension_functions.dart';
 import 'package:parvexglobal/models/tick_data.dart';
+import 'package:parvexglobal/models/search_instrument_model.dart';
 import 'package:parvexglobal/pages/AlertHistoryScreen.dart';
 import 'package:parvexglobal/pages/trade_ledger_screen.dart';
 import 'package:parvexglobal/services/RestApiServices.dart';
@@ -28,10 +29,10 @@ import 'instrument_detail.dart';
 import 'profile.dart';
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const String _wsUrl   = 'http://35.154.42.122:5001/ws';
+const String _wsUrl = 'http://35.154.42.122:5001/ws';
 const String _baseUrl = 'http://35.154.42.122:5001';
 const String _mt5Host = '35.154.42.122';
-const int    _mt5Port = 8765;
+const int _mt5Port = 8765;
 
 String _buildMt5WsUrl(List<String> symbols) {
   final params = symbols.join(',');
@@ -72,18 +73,26 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _tabs = const ["All", "Equity", "Futures", "Options", "International"];
 
-  int  _selectedTab = 0;
-  bool _connected   = false;
+  int _selectedTab = 0;
+  bool _connected = false;
   late String _userId;
 
   WebSocketChannel? _intlCh;
-  StompClient?      _stomp;
+  StompClient? _stomp;
 
   // ── MT5 exchange filter ────────────────────────────────────────────────────
   static const _mt5Exchanges = {'CRYPTO', 'FOREX', 'LSE', 'NYSE'};
 
   // Active MT5 symbol list — kept in sync with the watchlist.
   List<String> _intlSymbols = [];
+
+  // True when WE closed the socket on purpose (reconnect with new symbols,
+  // or dispose). Prevents the onDone handler from triggering another reconnect.
+  bool _mt5ClosedIntentionally = false;
+
+  // The URL the current MT5 socket is connected to.
+  // Used to skip reconnects when the symbol list hasn't changed.
+  String _currentMt5Url = '';
 
   // ── Tick map ───────────────────────────────────────────────────────────────
   // Key = symbolKey(tradingSymbol) — a stable positive int derived from the
@@ -100,8 +109,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final _tradeService = TradeService.instance;
 
   // ── Edit mode ──────────────────────────────────────────────────────────────
-  bool           _editing     = false;
-  double         _editSlide   = 56;
+  bool _editing = false;
+  double _editSlide = 56;
   final Set<int> _deletingIds = {};
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -123,7 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _stomp?.deactivate();
     http.delete(Uri.parse('$_baseUrl/api/v1/watchlist/$_userId'));
-    _intlCh?.sink.close();
+    _closeIntlSocket();
     _soundService.dispose();
     super.dispose();
   }
@@ -139,13 +148,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Category classifier ────────────────────────────────────────────────────
   String _categoryOf(TickData t) {
-    final ex   = (t.exchange ?? '').toUpperCase();
+    final ex = (t.exchange ?? '').toUpperCase();
     final type = (t.instrumentType ?? '').toUpperCase();
-    final seg  = (t.segment ?? '').toUpperCase();
+    final seg = (t.segment ?? '').toUpperCase();
 
-    if (_mt5Exchanges.contains(ex))                                               return 'International';
-    if (ex == 'COMEX' || ex == 'UAE')                                             return 'International';
-    if (t.tradingSymbol.endsWith('CE') || t.tradingSymbol.endsWith('PE'))         return 'Options';
+    if (_mt5Exchanges.contains(ex)) return 'International';
+    if (ex == 'COMEX' || ex == 'UAE') return 'International';
+    if (t.tradingSymbol.endsWith('CE') || t.tradingSymbol.endsWith('PE')) return 'Options';
     if (type == 'FUT' || seg.contains('FUT') || t.tradingSymbol.contains('FUT')) return 'Futures';
     return 'Equity';
   }
@@ -222,7 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
       for (final item in data) {
         if (item != null) {
           final tick = TickData.fromJson(item as Map<String, dynamic>);
-          final key  = symbolKey(tick.tradingSymbol); // ← hash of symbol
+          final key = symbolKey(tick.tradingSymbol); // ← hash of symbol
           _tickMap[key] = tick;
         }
       }
@@ -236,11 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _tradeService.pushTickMap(priceMap);
 
     // ── Auto-connect MT5 for FOREX / CRYPTO / LSE / NYSE symbols ────────────
-    final mt5Symbols = _tickMap.values
-        .where((t) => _mt5Exchanges.contains(t.exchange.toUpperCase()))
-        .map((t) => t.tradingSymbol)
-        .toSet()
-        .toList();
+    final mt5Symbols = _tickMap.values.where((t) => _mt5Exchanges.contains(t.exchange.toUpperCase())).map((t) => t.tradingSymbol).toSet().toList();
 
     if (mt5Symbols.isNotEmpty) {
       debugPrint('[MT5] Auto-connecting for symbols: $mt5Symbols');
@@ -252,18 +257,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── MT5 WebSocket ──────────────────────────────────────────────────────────
   void _connectIntl(List<String> symbols) {
-    _intlCh?.sink.close();
-    _intlCh = null;
-
-    if (symbols.isEmpty) return;
+    if (symbols.isEmpty) {
+      _closeIntlSocket();
+      return;
+    }
 
     final url = _buildMt5WsUrl(symbols);
-    debugPrint('[MT5] Connecting: $url');
 
+    // Already connected to exactly these symbols — do nothing.
+    if (_intlCh != null && _currentMt5Url == url) {
+      debugPrint('[MT5] Already connected to $url — skipping reconnect');
+      return;
+    }
+
+    _closeIntlSocket(); // close old socket intentionally before opening new one
+
+    debugPrint('[MT5] Connecting: $url');
+    _currentMt5Url = url;
+    _mt5ClosedIntentionally = false;
     _intlCh = WebSocketChannel.connect(Uri.parse(url));
 
     _intlCh!.stream.listen(
-          (raw) {
+      (raw) {
         if (raw is! String) return;
         try {
           final decoded = jsonDecode(raw);
@@ -277,18 +292,33 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           }
         } catch (e) {
-          debugPrint('[MT5] Parse error: $e');
+          debugPrint('[MT5] Parse error: \$e');
         }
       },
-      onError: (e) => debugPrint('[MT5] WS error: $e'),
+      onError: (e) => debugPrint('[MT5] WS error: \$e'),
       onDone: () {
-        debugPrint('[MT5] WS closed — reconnecting in 5s');
+        if (_mt5ClosedIntentionally) {
+          // We closed it ourselves — do not auto-reconnect here.
+          debugPrint('[MT5] WS closed intentionally');
+          return;
+        }
+        debugPrint('[MT5] WS closed unexpectedly — reconnecting in 5s');
         Future.delayed(const Duration(seconds: 5), () {
-          if (mounted) _connectIntl(_intlSymbols);
+          if (mounted && !_mt5ClosedIntentionally) _connectIntl(_intlSymbols);
         });
       },
       cancelOnError: false,
     );
+  }
+
+  // Closes the current MT5 socket and marks it as intentional so onDone
+  // does not schedule an unwanted reconnect.
+  void _closeIntlSocket() {
+    if (_intlCh != null) {
+      _mt5ClosedIntentionally = true;
+      _intlCh!.sink.close();
+      _intlCh = null;
+    }
   }
 
   void _handleMt5Tick(Map<String, dynamic> raw) {
@@ -301,37 +331,38 @@ class _HomeScreenState extends State<HomeScreen> {
     // because MT5 sends 0 for all FOREX pairs.
     final token = symbolKey(symbol);
 
-    final lastPrice     = (raw['lastPrice']     as num?)?.toDouble() ?? 0.0;
-    final change        = (raw['change']        as num?)?.toDouble() ?? 0.0;
+    final lastPrice = (raw['lastPrice'] as num?)?.toDouble() ?? 0.0;
+    final change = (raw['change'] as num?)?.toDouble() ?? 0.0;
     final changePercent = (raw['changePercent'] as num?)?.toDouble() ?? 0.0;
-    final open          = (raw['open']          as num?)?.toDouble() ?? lastPrice;
-    final high          = (raw['high']          as num?)?.toDouble() ?? lastPrice;
-    final low           = (raw['low']           as num?)?.toDouble() ?? lastPrice;
-    final close         = (raw['close']         as num?)?.toDouble() ?? lastPrice;
-    final volume        = (raw['volume']        as num?)?.toDouble() ?? 0.0;
-    final buyQuantity   = (raw['buyQuantity']   as num?)?.toDouble() ?? 0.0;
-    final sellQuantity  = (raw['sellQuantity']  as num?)?.toDouble() ?? 0.0;
-    final timestamp     = (raw['timestamp']     as num?)?.toInt()    ?? 0;
-    final id            = (raw['id']            as num?)?.toInt()    ?? 0;
-    final exchange      =  raw['exchange']      as String?           ?? 'MT5';
-    final rawToken      = (raw['instrumentToken'] as num?)?.toInt()  ?? 0;
+    final open = (raw['open'] as num?)?.toDouble() ?? lastPrice;
+    final high = (raw['high'] as num?)?.toDouble() ?? lastPrice;
+    final low = (raw['low'] as num?)?.toDouble() ?? lastPrice;
+    final close = (raw['close'] as num?)?.toDouble() ?? lastPrice;
+    final volume = (raw['volume'] as num?)?.toDouble() ?? 0.0;
+    final buyQuantity = (raw['buyQuantity'] as num?)?.toDouble() ?? 0.0;
+    final sellQuantity = (raw['sellQuantity'] as num?)?.toDouble() ?? 0.0;
+    final timestamp = (raw['timestamp'] as num?)?.toInt() ?? 0;
+    final existing    = _tickMap[token];                              // existing snapshot entry
+    final stableId    = existing?.id ?? (raw['id'] as num?)?.toInt() ?? 0;  // keep watchlist id
+    final exchange = raw['exchange'] as String? ?? 'MT5';
+    final rawToken = (raw['instrumentToken'] as num?)?.toInt() ?? 0;
 
     final tick = TickData(
-      id:              id,
+      id: stableId,
       instrumentToken: rawToken,
-      tradingSymbol:   symbol,
-      exchange:        exchange,
-      lastPrice:       lastPrice,
-      change:          change,
-      changePercent:   changePercent,
-      open:            open,
-      high:            high,
-      low:             low,
-      close:           close,
-      volume:          volume,
-      buyQuantity:     buyQuantity,
-      sellQuantity:    sellQuantity,
-      timestamp:       timestamp,
+      tradingSymbol: symbol,
+      exchange: exchange,
+      lastPrice: lastPrice,
+      change: change,
+      changePercent: changePercent,
+      open: open,
+      high: high,
+      low: low,
+      close: close,
+      volume: volume,
+      buyQuantity: buyQuantity,
+      sellQuantity: sellQuantity,
+      timestamp: timestamp,
     );
 
     _alertService.checkTick(token: token, price: lastPrice);
@@ -342,8 +373,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _updateIntlSymbols(List<String> symbols) {
+    final sorted = [...symbols]..sort();
+    final sortedCurrent = [..._intlSymbols]..sort();
+
+    // Only reconnect if the symbol set actually changed.
+    final changed = sorted.join(',') != sortedCurrent.join(',');
+
     setState(() => _intlSymbols = symbols);
-    _connectIntl(symbols);
+
+    if (changed) {
+      debugPrint('[MT5] Symbol list changed → reconnecting (new: \$sorted)');
+      _connectIntl(symbols);
+    }
   }
 
   // ── STOMP ──────────────────────────────────────────────────────────────────
@@ -374,7 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           for (final item in batch) {
             final tick = TickData.fromJson(item as Map<String, dynamic>);
-            final key  = symbolKey(tick.tradingSymbol); // ← hash of symbol
+            final key = symbolKey(tick.tradingSymbol); // ← hash of symbol
             _tickMap[key] = tick;
             _alertService.checkTick(token: key, price: tick.lastPrice);
             _tradeService.pushTick(token: key, price: tick.lastPrice);
@@ -389,6 +430,81 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _connected = false);
   }
 
+  // ── Instrument added from AddInstrument screen ────────────────────────────
+  //
+  // Called immediately after the user taps "+" in AddInstrument.
+  // • International (MT5) symbols: add to the MT5 WebSocket right away so
+  //   ticks start arriving before the user even navigates back.
+  // • Indian symbols (NSE / NFO / MCX …): the server-side STOMP subscription
+  //   will start delivering ticks automatically because the watchlist changed,
+  //   but we also insert a placeholder TickData so the card appears instantly.
+  void _onInstrumentAdded(SearchInstrumentModel instrument) {
+    if (!mounted) return;
+
+    final symbol = instrument.symbol.toUpperCase();
+    final exchange = instrument.exchange.toUpperCase();
+    final key = symbolKey(symbol);
+
+    final isIntl = _mt5Exchanges.contains(exchange) || exchange == 'COMEX' || exchange == 'UAE';
+
+    if (isIntl) {
+      // ── International: reconnect MT5 socket with the new symbol added ──────
+      if (!_intlSymbols.contains(symbol)) {
+        debugPrint('[AddInstrument] New intl symbol $symbol → reconnecting MT5');
+        _updateIntlSymbols([..._intlSymbols, symbol]);
+      }
+    }
+
+    // Insert a placeholder tick immediately so the row appears on HomeScreen
+    // right away (price will be filled in by the first tick from the socket).
+    if (!_tickMap.containsKey(key)) {
+      setState(() {
+        _tickMap[key] = TickData(
+          id: instrument.instrumentId,
+          instrumentToken: 0,
+          tradingSymbol: symbol,
+          exchange: exchange,
+          lastPrice: 0,
+          change: 0,
+          changePercent: 0,
+          open: 0,
+          high: 0,
+          low: 0,
+          close: 0,
+          volume: 0,
+          buyQuantity: 0,
+          sellQuantity: 0,
+          timestamp: 0,
+          name: instrument.name,
+          instrumentType: '',
+          segment: '',
+        );
+      });
+      debugPrint('[AddInstrument] Placeholder tick inserted for $symbol');
+    }
+  }
+
+  // Called when the user removes an instrument from within AddInstrument screen.
+  void _onInstrumentAddedRemoved(SearchInstrumentModel instrument) {
+    if (!mounted) return;
+
+    final symbol = instrument.symbol.toUpperCase();
+    final exchange = instrument.exchange.toUpperCase();
+    final key = symbolKey(symbol);
+
+    setState(() {
+      _tickMap.remove(key);
+      _alertService.removeAllForToken(key);
+
+      // If it was an international symbol, drop it from the MT5 socket too.
+      if (_mt5Exchanges.contains(exchange) || exchange == 'COMEX' || exchange == 'UAE') {
+        _updateIntlSymbols(_intlSymbols.where((s) => s != symbol).toList());
+      }
+    });
+
+    debugPrint('[AddInstrument] Removed $symbol from HomeScreen tick map');
+  }
+
   // ── Remove instrument ──────────────────────────────────────────────────────
   void _removeInstrument(TickData tick) async {
     final key = symbolKey(tick.tradingSymbol); // ← hash of symbol
@@ -396,9 +512,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     bool success = false;
     try {
-      success = await api
-          .removeFromWatchlist(instrumentId: tick.id)
-          .timeout(const Duration(seconds: 20));
+      success = await api.removeFromWatchlist(instrumentId: tick.id).timeout(const Duration(seconds: 20));
     } on TimeoutException {
       // treat timeout as failure
     }
@@ -454,7 +568,12 @@ class _HomeScreenState extends State<HomeScreen> {
           InkWell(
             onTap: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const AddInstrument()),
+              MaterialPageRoute(
+                builder: (_) => AddInstrument(
+                  onInstrumentAdded: _onInstrumentAdded,
+                  onInstrumentRemoved: _onInstrumentAddedRemoved,
+                ),
+              ),
             ),
             borderRadius: BorderRadius.circular(6),
             child: Container(
@@ -470,10 +589,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   SizedBox(width: 4),
                   Text(
                     "Add",
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1F63FF)),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1F63FF)),
                   ),
                 ],
               ),
@@ -487,9 +603,7 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
-                color: _editing
-                    ? const Color(0xFF1F63FF)
-                    : Colors.grey.shade100,
+                color: _editing ? const Color(0xFF1F63FF) : Colors.grey.shade100,
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -560,41 +674,31 @@ class _HomeScreenState extends State<HomeScreen> {
     return Expanded(
       child: ListView.builder(
         itemCount: visibleTicks.length,
-        itemBuilder: (context, index) =>
-            _buildWatchlistCard(context, tick: visibleTicks[index]),
+        itemBuilder: (context, index) => _buildWatchlistCard(context, tick: visibleTicks[index]),
       ),
     );
   }
 
   // ── Watchlist card ─────────────────────────────────────────────────────────
   Widget _buildWatchlistCard(BuildContext context, {required TickData tick}) {
-    final key            = symbolKey(tick.tradingSymbol); // ← hash of symbol
-    final isUp           = tick.isUp;
-    final directionColor =
-    isUp ? const Color(0xFF1E7D3A) : const Color(0xFFCC2929);
-    final pillBgColor    =
-    isUp ? const Color(0xFFD6F3E0) : const Color(0xFFF9D6D6);
-    final pillTextColor  =
-    isUp ? const Color(0xFF1A6E33) : const Color(0xFFB82323);
-    final directionIcon  =
-    isUp ? Icons.trending_up : Icons.trending_down_outlined;
-    final hasAlert =
-    _alertService.alertsForToken(key).any((a) => !a.triggered);
+    final key = symbolKey(tick.tradingSymbol); // ← hash of symbol
+    final isUp = tick.isUp;
+    final directionColor = isUp ? const Color(0xFF1E7D3A) : const Color(0xFFCC2929);
+    final pillBgColor = isUp ? const Color(0xFFD6F3E0) : const Color(0xFFF9D6D6);
+    final pillTextColor = isUp ? const Color(0xFF1A6E33) : const Color(0xFFB82323);
+    final directionIcon = isUp ? Icons.trending_up : Icons.trending_down_outlined;
+    final hasAlert = _alertService.alertsForToken(key).any((a) => !a.triggered);
 
     // Decide decimal precision: FOREX uses 5dp, everything else 2dp
-    final isMt5    = _mt5Exchanges.contains(tick.exchange.toUpperCase());
-    final priceFmt = isMt5
-        ? tick.lastPrice.toStringAsFixed(5)
-        : '₹${tick.lastPrice.toStringAsFixed(2)}';
+    final isMt5 = _mt5Exchanges.contains(tick.exchange.toUpperCase());
+    final priceFmt = isMt5 ? tick.lastPrice.toStringAsFixed(5) : '₹${tick.lastPrice.toStringAsFixed(2)}';
 
     return Stack(
       children: [
         AnimatedSlide(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
-          offset: _editing
-              ? Offset(1, 0) * (_editSlide / MediaQuery.of(context).size.width)
-              : Offset.zero,
+          offset: _editing ? Offset(1, 0) * (_editSlide / MediaQuery.of(context).size.width) : Offset.zero,
           child: GestureDetector(
             onLongPress: () => SetAlertBottomSheet.show(
               context,
@@ -607,9 +711,7 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: isUp
-                      ? const Color(0xFFB2DFBE)
-                      : const Color(0xFFF1B8B8),
+                  color: isUp ? const Color(0xFFB2DFBE) : const Color(0xFFF1B8B8),
                   width: 0.8,
                 ),
                 gradient: LinearGradient(
@@ -675,26 +777,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     borderRadius: BorderRadius.circular(6),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 7, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(6),
-                                        color: hasAlert
-                                            ? const Color(0xFF1F63FF)
-                                            .withOpacity(0.08)
-                                            : Colors.grey.shade100,
+                                        color: hasAlert ? const Color(0xFF1F63FF).withOpacity(0.08) : Colors.grey.shade100,
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
-                                            hasAlert
-                                                ? Icons.notifications_active
-                                                : Icons.notifications_none,
+                                            hasAlert ? Icons.notifications_active : Icons.notifications_none,
                                             size: 16,
-                                            color: hasAlert
-                                                ? const Color(0xFF1F63FF)
-                                                : Colors.grey.shade500,
+                                            color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade500,
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
@@ -702,9 +796,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                             style: TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w500,
-                                              color: hasAlert
-                                                  ? const Color(0xFF1F63FF)
-                                                  : Colors.grey.shade600,
+                                              color: hasAlert ? const Color(0xFF1F63FF) : Colors.grey.shade600,
                                             ),
                                           ),
                                         ],
@@ -722,19 +814,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                     borderRadius: BorderRadius.circular(6),
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 7, vertical: 4),
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(6),
-                                        color: const Color(0xFF7C4DFF)
-                                            .withOpacity(0.08),
+                                        color: const Color(0xFF7C4DFF).withOpacity(0.08),
                                       ),
                                       child: const Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.add_chart,
-                                              size: 16,
-                                              color: Color(0xFF7C4DFF)),
+                                          Icon(Icons.add_chart, size: 16, color: Color(0xFF7C4DFF)),
                                           SizedBox(width: 4),
                                           Text(
                                             "Add Trade",
@@ -769,8 +857,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 7, vertical: 3),
+                                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                                   decoration: BoxDecoration(
                                     color: pillBgColor,
                                     borderRadius: BorderRadius.circular(6),
@@ -778,8 +865,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(directionIcon,
-                                          size: 14, color: directionColor),
+                                      Icon(directionIcon, size: 14, color: directionColor),
                                       const SizedBox(width: 3),
                                       Text(
                                         '${tick.changePercent.toStringAsFixed(2)}%',
@@ -809,19 +895,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    Divider(
-                        height: 1,
-                        thickness: 0.6,
-                        color: Colors.grey.shade200),
+                    Divider(height: 1, thickness: 0.6, color: Colors.grey.shade200),
                     const SizedBox(height: 8),
                     // ── OHLC row ─────────────────────────────────────────
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _buildDetailItem(
-                            'Prev close', tick.close.toStringAsFixed(2)),
-                        _buildDetailItem(
-                            'Open', tick.open.toStringAsFixed(2)),
+                        _buildDetailItem('Prev close', tick.close.toStringAsFixed(2)),
+                        _buildDetailItem('Open', tick.open.toStringAsFixed(2)),
                         _buildDetailItem(
                           'H / L',
                           '${tick.high.toStringAsFixed(2)} / ${tick.low.toStringAsFixed(2)}',
@@ -838,21 +919,22 @@ class _HomeScreenState extends State<HomeScreen> {
         // ── Delete button (edit mode) ──────────────────────────────────────
         if (_editing)
           Positioned(
-            left: 0, top: 0, bottom: 0,
+            left: 0,
+            top: 0,
+            bottom: 0,
             child: Center(
               child: _deletingIds.contains(key)
                   ? Container(
-                width: 22,
-                height: 22,
-                margin: const EdgeInsets.only(left: 16),
-                child: const CircularProgressIndicator(strokeWidth: 2),
-              )
+                      width: 22,
+                      height: 22,
+                      margin: const EdgeInsets.only(left: 16),
+                      child: const CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : IconButton(
-                splashRadius: 24,
-                icon: const Icon(Icons.remove_circle,
-                    color: Colors.red, size: 28),
-                onPressed: () => _removeInstrument(tick),
-              ),
+                      splashRadius: 24,
+                      icon: const Icon(Icons.remove_circle, color: Colors.red, size: 28),
+                      onPressed: () => _removeInstrument(tick),
+                    ),
             ),
           ),
       ],
@@ -860,22 +942,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── Detail item ────────────────────────────────────────────────────────────
-  Widget _buildDetailItem(String label, String value,
-      {bool alignEnd = false}) {
+  Widget _buildDetailItem(String label, String value, {bool alignEnd = false}) {
     return Column(
-      crossAxisAlignment:
-      alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey.shade500,
-              fontWeight: FontWeight.w400),
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w400),
         ),
         const SizedBox(height: 2),
-        Text(value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -883,32 +959,28 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildAppBarAction(IconData icon, VoidCallback onTap) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      decoration:
-      BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
+      decoration: BoxDecoration(color: Colors.grey.shade100, shape: BoxShape.circle),
       child: IconButton(
-          icon: Icon(icon, color: Colors.black54, size: 20),
-          onPressed: onTap),
+        icon: Icon(icon, color: Colors.black54, size: 20),
+        onPressed: onTap,
+      ),
     );
   }
 }
 
 // ── _ChipTab ──────────────────────────────────────────────────────────────────
 class _ChipTab extends StatelessWidget {
-  const _ChipTab(
-      {required this.label,
-        required this.selected,
-        required this.onTap});
+  const _ChipTab({required this.label, required this.selected, required this.onTap});
 
-  final String       label;
-  final bool         selected;
+  final String label;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final bg     = selected ? const Color(0xFF1F63FF) : Colors.white;
-    final fg     = selected ? Colors.white : const Color(0xFF55657C);
-    final border =
-    selected ? const Color(0xFF1F63FF) : const Color(0xFFDEE6F1);
+    final bg = selected ? const Color(0xFF1F63FF) : Colors.white;
+    final fg = selected ? Colors.white : const Color(0xFF55657C);
+    final border = selected ? const Color(0xFF1F63FF) : const Color(0xFFDEE6F1);
 
     return InkWell(
       borderRadius: BorderRadius.circular(4),
@@ -923,8 +995,7 @@ class _ChipTab extends StatelessWidget {
         child: Center(
           child: Text(
             label,
-            style: TextStyle(
-                color: fg, fontWeight: FontWeight.w800, fontSize: 12),
+            style: TextStyle(color: fg, fontWeight: FontWeight.w800, fontSize: 12),
           ),
         ),
       ),
