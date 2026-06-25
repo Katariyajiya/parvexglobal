@@ -1,4 +1,4 @@
-package com.example.parvexglobal
+package com.psoni.bavtav
 
 import io.flutter.embedding.android.FlutterActivity
 
